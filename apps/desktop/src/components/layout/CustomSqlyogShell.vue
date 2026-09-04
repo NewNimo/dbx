@@ -317,9 +317,47 @@ function handleActivateConnection(connId: string) {
   }
 }
 
+function findConnectionNode(nodes: TreeNode[], connectionId: string): TreeNode | null {
+  for (const node of nodes) {
+    if (node.type === "connection" && (node.connectionId === connectionId || node.id === connectionId)) return node;
+    if (node.children) {
+      const found = findConnectionNode(node.children, connectionId);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+async function expandConnectionTree(connId: string) {
+  try {
+    let node = findConnectionNode(connectionStore.treeNodes, connId);
+    if (!node) {
+      await connectionStore.loadDatabases(connId);
+      node = findConnectionNode(connectionStore.treeNodes, connId);
+    }
+    if (node) {
+      node.isExpanded = true;
+      await connectionStore.loadTreeNodeChildren(node);
+    } else {
+      await connectionStore.loadDatabases(connId);
+    }
+  } catch (e: any) {
+    console.warn("[DBX] Failed to auto-expand connection tree:", e);
+  }
+}
+
 function handleOpenConnection(connId: string) {
+  const isNewTab = !customConnectionTabs.openedConnectionIds.value.includes(connId);
   customConnectionTabs.openConnectionTab(connId);
   handleActivateConnection(connId);
+
+  if (isNewTab) {
+    const existingTabs = queryStore.tabs.filter((t) => t.connectionId === connId);
+    if (existingTabs.length === 0) {
+      emit("open-connection-query", connId);
+    }
+    void expandConnectionTree(connId);
+  }
 }
 
 const showCloseConnectionConfirm = ref(false);
@@ -399,7 +437,9 @@ function handleNewConnection() {
 
 function handleOpenConnectionFromWelcome(connId: string) {
   customConnectionTabs.openConnectionTab(connId);
+  handleActivateConnection(connId);
   emit("open-connection-query", connId);
+  void expandConnectionTree(connId);
 }
 </script>
 
@@ -511,6 +551,7 @@ function handleOpenConnectionFromWelcome(connId: string) {
           @detach-tab="emit('detach-tab', $event)"
           @start-resize="emit('start-tab-bar-resize', $event)"
           @toggle-collapse="emit('toggle-tab-bar-collapse')"
+          @new-query="emit('new-query')"
         />
 
         <!-- Query Workspace (when activeTab is open) -->

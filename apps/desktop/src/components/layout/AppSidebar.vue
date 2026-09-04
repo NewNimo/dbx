@@ -11,7 +11,9 @@ import LightTooltip from "@/components/ui/LightTooltip.vue";
 import ConnectionTree from "@/components/sidebar/ConnectionTree.vue";
 import { applyConnectionMultiSelection, emptyConnectionMultiSelection, isExitConnectionMultiSelectionShortcut } from "@/lib/sidebar/sidebarConnectionMultiSelect";
 import { connectionGroupDestinationRows } from "@/lib/sidebar/sidebarLayout";
+import { insertTextIntoActiveQueryEditor } from "@/lib/editor/queryEditorTextEdits";
 import { useConnectionStore } from "@/stores/connectionStore";
+import { useQueryStore } from "@/stores/queryStore";
 import { useToast } from "@/composables/useToast";
 import type { QueryTab, TreeNode } from "@/types/database";
 
@@ -34,6 +36,7 @@ type ImportSource = "dbx" | "navicat" | "dbeaver" | "datagrip";
 
 const { t } = useI18n();
 const connectionStore = useConnectionStore();
+const queryStore = useQueryStore();
 const { toast } = useToast();
 const connectionTreeRef = ref<InstanceType<typeof ConnectionTree>>();
 const showDeleteSelectedConfirm = ref(false);
@@ -194,6 +197,46 @@ function confirmCreateSelectedGroup() {
   showCreateSelectedGroupDialog.value = false;
 }
 
+function findTreeNodeById(nodes: readonly TreeNode[], id: string): TreeNode | null {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    if (node.children?.length) {
+      const found = findTreeNodeById(node.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function onTreeContainerDblClick(event: MouseEvent) {
+  const activeTab = queryStore.tabs.find((t) => t.id === queryStore.activeTabId);
+  if (!activeTab || activeTab.mode !== "query") return;
+
+  const target = event.target as HTMLElement | null;
+  if (!target) return;
+  const row = target.closest<HTMLElement>(".tree-row, [class*='group/sidebar-row']");
+  if (!row) return;
+
+  const selectedId = connectionStore.selectedTreeNodeId;
+  if (!selectedId) return;
+
+  const node = findTreeNodeById(connectionStore.treeNodes, selectedId);
+  if (!node || node.type !== "table") return;
+
+  const tableName = (node.tableName || node.label || "").trim();
+  if (!tableName) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+
+  const inserted = insertTextIntoActiveQueryEditor(tableName);
+  if (!inserted) {
+    const currentSql = activeTab.sql ?? "";
+    queryStore.updateSql(activeTab.id, currentSql ? `${currentSql} ${tableName}` : tableName);
+  }
+}
+
 defineExpose({ focusSearch, locateTabInSidebar });
 </script>
 
@@ -293,7 +336,7 @@ defineExpose({ focusSearch, locateTabInSidebar });
           </span>
         </template>
       </div>
-      <div class="flex-1 min-h-0">
+      <div class="flex-1 min-h-0" @dblclick.capture="onTreeContainerDblClick">
         <ConnectionTree ref="connectionTreeRef" :focused-connection-id="focusedConnectionId" @open-settings="(initialTab) => emit('open-settings', initialTab)" @add-to-ai="(nodes) => emit('add-to-ai', nodes)" />
       </div>
     </div>

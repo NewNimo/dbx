@@ -10,10 +10,17 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("vue-i18n", () => ({
   useI18n: () => ({ t: (key: string) => key }),
+  createI18n: () => ({
+    global: { t: (key: string) => key },
+  }),
 }));
 
 vi.mock("@/stores/connectionStore", () => ({
   useConnectionStore: () => mocks.store,
+}));
+
+vi.mock("@/stores/queryStore", () => ({
+  useQueryStore: () => ({ activeTabId: null, tabs: [], updateSql: vi.fn() }),
 }));
 
 vi.mock("@/composables/useToast", () => ({
