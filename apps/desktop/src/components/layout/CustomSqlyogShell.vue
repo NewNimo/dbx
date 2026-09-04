@@ -225,27 +225,37 @@ const connectionStore = useConnectionStore();
 const queryStore = useQueryStore();
 const customConnectionTabs = useCustomConnectionTabs();
 
-// Sync active tab connection to connection tabs
+// Sync active tab connection to connection tabs and remember last active tab
 watch(
-  () => props.activeTab?.connectionId,
-  (newConnId) => {
-    if (newConnId && !customConnectionTabs.openedConnectionIds.value.includes(newConnId)) {
-      customConnectionTabs.openConnectionTab(newConnId);
-    } else if (newConnId && customConnectionTabs.activeConnectionId.value !== newConnId) {
-      customConnectionTabs.activateConnectionTab(newConnId);
+  () => [queryStore.activeTabId, props.activeTab?.connectionId] as const,
+  ([tabId, connId]) => {
+    if (tabId && connId) {
+      if (!customConnectionTabs.openedConnectionIds.value.includes(connId)) {
+        customConnectionTabs.openConnectionTab(connId);
+      }
+      customConnectionTabs.setLastActiveTab(connId, tabId);
+      if (customConnectionTabs.activeConnectionId.value !== connId) {
+        customConnectionTabs.activateConnectionTab(connId);
+        connectionStore.activeConnectionId = connId;
+      }
     }
   },
 );
 
-// When active connection changes, set active connection in store and pick first matching tab
+// When active connection changes, set active connection in store and pick last active or first matching tab
 function handleActivateConnection(connId: string) {
   customConnectionTabs.activateConnectionTab(connId);
   connectionStore.activeConnectionId = connId;
 
-  // If there's an existing tab for this connection, activate it
-  const matchingTab = queryStore.tabs.find((t) => t.connectionId === connId);
+  // Look for last active tab for this connection or first tab
+  const lastTabId = customConnectionTabs.getLastActiveTab(connId);
+  const matchingTab = (lastTabId ? queryStore.tabs.find((t) => t.id === lastTabId && t.connectionId === connId) : null) || queryStore.tabs.find((t) => t.connectionId === connId);
+
   if (matchingTab) {
     queryStore.activeTabId = matchingTab.id;
+    customConnectionTabs.setLastActiveTab(connId, matchingTab.id);
+  } else {
+    queryStore.activeTabId = null;
   }
 }
 
@@ -256,6 +266,12 @@ function handleOpenConnection(connId: string) {
 
 function handleCloseConnection(connId: string) {
   customConnectionTabs.closeConnectionTab(connId);
+  if (customConnectionTabs.activeConnectionId.value) {
+    handleActivateConnection(customConnectionTabs.activeConnectionId.value);
+  } else {
+    connectionStore.activeConnectionId = null;
+    queryStore.activeTabId = null;
+  }
 }
 
 function handleNewConnection() {
@@ -351,6 +367,7 @@ function handleOpenConnectionFromWelcome(connId: string) {
         <AppTabBar
           v-if="customConnectionTabs.activeConnectionId.value"
           :ref="appTabBarRef"
+          :connection-id="customConnectionTabs.activeConnectionId.value"
           :driver-store-open="false"
           :driver-store-active="false"
           :settings-page-open="false"

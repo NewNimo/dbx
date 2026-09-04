@@ -54,7 +54,7 @@ const addConnectionMenuItems = computed(() => {
 
   items.push({
     value: "action:new",
-    label: t("connection.newConnection") || "新建连接...",
+    label: t("toolbar.newConnection") || "新建连接",
     icon: PlusCircle,
     separatorBefore: unopenedConnections.value.length > 0,
   });
