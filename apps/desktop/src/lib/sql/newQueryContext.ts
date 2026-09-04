@@ -34,10 +34,18 @@ export function findTreeNodeById(nodes: TreeNode[], id: string | null | undefine
 export function resolveNewQueryTarget(input: ResolveNewQueryTargetInput): NewQueryTarget | null {
   const primaryContext = input.preferredSource === "sidebar" ? input.selectedTreeNode || undefined : input.activeTab;
   const secondaryContext = input.preferredSource === "sidebar" ? input.activeTab : input.selectedTreeNode || undefined;
-  const primaryTarget = targetFromContext(primaryContext, input.connections);
-  if (primaryTarget) return primaryTarget;
-  const secondaryTarget = targetFromContext(secondaryContext, input.connections);
-  if (secondaryTarget) return secondaryTarget;
+
+  const matchActiveConnection = (ctx?: { connectionId?: string }) => !input.activeConnectionId || ctx?.connectionId === input.activeConnectionId;
+
+  if (matchActiveConnection(primaryContext)) {
+    const primaryTarget = targetFromContext(primaryContext, input.connections);
+    if (primaryTarget) return primaryTarget;
+  }
+
+  if (matchActiveConnection(secondaryContext)) {
+    const secondaryTarget = targetFromContext(secondaryContext, input.connections);
+    if (secondaryTarget) return secondaryTarget;
+  }
 
   const activeConnection = input.activeConnectionId ? input.connections.find((connection) => connection.id === input.activeConnectionId) : undefined;
   const fallbackConnection = activeConnection || input.connections[0];

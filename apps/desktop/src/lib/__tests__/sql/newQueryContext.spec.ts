@@ -106,6 +106,29 @@ describe("resolveNewQueryTarget", () => {
       })?.schema,
     ).toBe("reporting");
   });
+
+  it("strictly respects activeConnectionId and ignores activeTab/selectedTreeNode from different connections", () => {
+    expect(
+      resolveNewQueryTarget({
+        activeConnectionId: "conn-2",
+        activeTab: {
+          connectionId: "conn-1",
+          database: "db_one",
+        },
+        selectedTreeNode: {
+          connectionId: "conn-1",
+          database: "db_one",
+        },
+        connections: [
+          { id: "conn-1", host: "localhost", database: "db_one", db_type: "mysql" },
+          { id: "conn-2", host: "remotehost", database: "db_two", db_type: "mysql" },
+        ],
+      }),
+    ).toMatchObject({
+      connectionId: "conn-2",
+      database: "db_two",
+    });
+  });
 });
 
 describe("resolveNewQueryTable", () => {
