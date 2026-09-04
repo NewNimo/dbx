@@ -6683,6 +6683,8 @@ export default {
     appLayoutSeparatedDescription: "Clear panel separation with block-style tabs.",
     appLayoutClassic: "Classic compact",
     appLayoutClassicDescription: "Continuous tab bar with compact panel headers.",
+    appLayoutSqlyog: "SQLyog multi-connection",
+    appLayoutSqlyogDescription: "Each connection opens as an isolated workspace tab.",
     tabLayout: "Tab bar overflow",
     tabLayoutScroll: "Single row scroll",
     tabLayoutScrollDescription: "Tabs scroll horizontally in one row when overflowing.",

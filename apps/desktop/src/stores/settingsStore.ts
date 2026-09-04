@@ -5,7 +5,7 @@ import { DEFAULT_DATA_GRID_FONT_FAMILY, DEFAULT_UI_FONT_FAMILY } from "@/lib/app
 import { defaultBackgroundImageSettings, normalizeBackgroundImageSettings, type BackgroundImageSettings } from "@/lib/app/appBackgroundImage";
 import * as api from "@/lib/backend/api";
 import { setDebugLoggingEnabled } from "@/lib/backend/debugLog";
-import { safeLocalStorageGet, safeLocalStorageRemove } from "@/lib/backend/safeStorage";
+import { safeLocalStorageGet, safeLocalStorageRemove, safeLocalStorageSet } from "@/lib/backend/safeStorage";
 import { type ColumnFormatterConfig, type CustomColumnFormatterConfig, normalizeColumnFormatter, normalizeCustomColumnFormatter, normalizeGlobalDateTimePattern } from "@/lib/dataGrid/columnFormatter";
 import { type DataGridCopyPreference, type DataGridExtractorOptions, DATA_GRID_EXTRACTOR_OPTIONS_MIGRATION_VERSION, DEFAULT_DATA_GRID_EXTRACTOR_OPTIONS, normalizeDataGridCopyPreference, normalizeDataGridExtractorOptions } from "@/lib/dataGrid/dataGridCopyExtractor";
 import { DATA_GRID_TEXT_FILTER_PANEL_HEIGHT_DEFAULT, normalizeDataGridTextFilterPanelHeight } from "@/lib/dataGrid/dataGridTextFilterPanel";
@@ -89,7 +89,7 @@ export interface McpDatabasePolicy {
 
 export type DesktopIconTheme = "default" | "black";
 
-export type InterfaceLayout = "separated" | "classic";
+export type InterfaceLayout = "separated" | "classic" | "sqlyog";
 
 export type UpdateDownloadSource = "official" | "cnb";
 export type SqlSemanticDiagnosticsMode = "auto" | "enabled" | "disabled";
@@ -764,7 +764,7 @@ export interface EditorSettings {
   tabGroupMode: TabGroupMode;
   tabGroupCustomizations: Record<string, TabGroupCustomization>;
   tabSortMode: TabSortMode;
-  appLayout: "separated" | "classic";
+  appLayout: "separated" | "classic" | "sqlyog";
   pageSize: number;
   tableOpenPageSize: number;
   queryResultMaxRowsEnabled: boolean;
@@ -1001,7 +1001,7 @@ export const DEFAULT_EDITOR_SETTINGS: EditorSettings = {
   tabGroupMode: "none",
   tabGroupCustomizations: {},
   tabSortMode: "manual",
-  appLayout: "classic",
+  appLayout: "sqlyog",
   pageSize: 100,
   tableOpenPageSize: 100,
   queryResultMaxRowsEnabled: true,
@@ -1458,7 +1458,7 @@ export function normalizeEditorSettings(settings: Partial<EditorSettings>, exist
     tabGroupMode: normalizeTabGroupMode(settings.tabGroupMode),
     tabGroupCustomizations: normalizeTabGroupCustomizations(settings.tabGroupCustomizations),
     tabSortMode: normalizeTabSortMode(settings.tabSortMode),
-    appLayout: settings.appLayout ?? DEFAULT_EDITOR_SETTINGS.appLayout,
+    appLayout: settings.appLayout === "separated" || settings.appLayout === "classic" || settings.appLayout === "sqlyog" ? settings.appLayout : DEFAULT_EDITOR_SETTINGS.appLayout,
     pageSize: normalizeResultPageSize(settings.pageSize),
     tableOpenPageSize: normalizeResultPageSize(settings.tableOpenPageSize, DEFAULT_EDITOR_SETTINGS.tableOpenPageSize),
     queryResultMaxRowsEnabled: settings.queryResultMaxRowsEnabled !== false,
@@ -1773,6 +1773,7 @@ export const useSettingsStore = defineStore("settings", () => {
         // store unloaded prevents startup migrations from persisting defaults over
         // settings that are temporarily unavailable.
         const saved = await api.loadEditorSettings();
+
         if (saved && typeof saved === "object" && !Array.isArray(saved)) {
           const savedSettings = saved as Partial<EditorSettings>;
           const normalized = normalizeEditorSettings(savedSettings);

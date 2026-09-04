@@ -6666,6 +6666,8 @@ export default withEnglishFallback({
     appLayoutSeparatedDescription: "面板分隔更清晰，标签页为块状样式。",
     appLayoutClassic: "经典紧凑",
     appLayoutClassicDescription: "使用连续标签栏和更紧凑的面板标题。",
+    appLayoutSqlyog: "SQLyog 多连接工作区",
+    appLayoutSqlyogDescription: "每个连接以独立标签页打开，各工作区拥有专属对象树与查询子标签。",
     tabLayout: "标签栏溢出",
     tabLayoutScroll: "单行滚动",
     tabLayoutScrollDescription: "标签页超出一行时水平滚动显示。",

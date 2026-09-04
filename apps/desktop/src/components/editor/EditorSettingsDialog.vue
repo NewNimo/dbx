@@ -912,14 +912,17 @@ const iconThemeBlackDescriptionText = computed(() => (isMacOS() ? t("settings.ic
 const layoutDescTruncated = {
   separated: ref<boolean>(false),
   classic: ref<boolean>(false),
+  sqlyog: ref<boolean>(false),
 };
 const layoutDescRefs = {
   separated: ref<HTMLElement | null>(null),
   classic: ref<HTMLElement | null>(null),
+  sqlyog: ref<HTMLElement | null>(null),
 };
 let layoutDescObservers: Record<InterfaceLayout, ResizeObserver | undefined> = {
   separated: undefined,
   classic: undefined,
+  sqlyog: undefined,
 };
 function observeElementTruncation(el: Ref<HTMLElement | null>, truncated: Ref<boolean>) {
   if (!el.value) return;
@@ -935,11 +938,13 @@ function observeElementTruncation(el: Ref<HTMLElement | null>, truncated: Ref<bo
 function initTruncationObservers() {
   layoutDescObservers.separated = observeElementTruncation(layoutDescRefs.separated, layoutDescTruncated.separated);
   layoutDescObservers.classic = observeElementTruncation(layoutDescRefs.classic, layoutDescTruncated.classic);
+  layoutDescObservers.sqlyog = observeElementTruncation(layoutDescRefs.sqlyog, layoutDescTruncated.sqlyog);
 }
 
 function cleanupTruncationObservers() {
   layoutDescObservers.separated?.disconnect();
   layoutDescObservers.classic?.disconnect();
+  layoutDescObservers.sqlyog?.disconnect();
 }
 
 function setLayoutDescRef(layout: InterfaceLayout, el: unknown) {
@@ -950,6 +955,7 @@ function checkLayoutDescTruncation() {
   checkTruncationForRefs([
     { el: layoutDescRefs.separated, truncated: layoutDescTruncated.separated },
     { el: layoutDescRefs.classic, truncated: layoutDescTruncated.classic },
+    { el: layoutDescRefs.sqlyog, truncated: layoutDescTruncated.sqlyog },
   ]);
 }
 
@@ -5965,6 +5971,25 @@ onUnmounted(() => {
                         </TooltipTrigger>
                         <TooltipContent v-if="layoutDescTruncated.classic.value" class="max-w-[320px] text-xs leading-relaxed">
                           {{ t("settings.appLayoutClassicDescription") }}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </Button>
+                  <Button type="button" variant="outline" class="settings-choice-card h-auto justify-start border p-3" :class="editAppLayout === 'sqlyog' ? 'dbx-choice-selected' : ''" @click="setAppLayout('sqlyog')">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger as-child>
+                          <div class="w-full min-w-0 text-left">
+                            <div class="text-sm font-medium">
+                              {{ t("settings.appLayoutSqlyog") }}
+                            </div>
+                            <div :ref="(el) => setLayoutDescRef('sqlyog', el)" class="text-xs text-muted-foreground truncate">
+                              {{ t("settings.appLayoutSqlyogDescription") }}
+                            </div>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent v-if="layoutDescTruncated.sqlyog.value" class="max-w-[320px] text-xs leading-relaxed">
+                          {{ t("settings.appLayoutSqlyogDescription") }}
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>

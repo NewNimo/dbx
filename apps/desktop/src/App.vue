@@ -12,6 +12,7 @@ import { EDITOR_TOOLBAR_ACTIONS } from "@/components/layout/editorToolbarActions
 import AppDialogs from "@/components/layout/AppDialogs.vue";
 import DetachedTabHeader from "@/components/layout/DetachedTabHeader.vue";
 import WelcomeScreen from "@/components/layout/WelcomeScreen.vue";
+import CustomSqlyogShell from "@/components/layout/CustomSqlyogShell.vue";
 import type { ConfigTab } from "@/components/connection/ConnectionDialog.vue";
 import { useConnectionStore } from "@/stores/connectionStore";
 import { useQueryStore } from "@/stores/queryStore";
@@ -918,6 +919,13 @@ useScheduledDatabaseBackups({ scheduler: true });
 
 const appVersion = ref("");
 const isClassicLayout = computed(() => settingsStore.editorSettings.appLayout === "classic");
+const isSqlyogLayout = computed(() => settingsStore.editorSettings.appLayout === "sqlyog");
+const isVerticalTabPlacement = computed(() => settingsStore.editorSettings.tabPlacement === "left" || settingsStore.editorSettings.tabPlacement === "right");
+const tabWorkspaceLayoutClass = computed(() => {
+  if (settingsStore.editorSettings.tabPlacement === "bottom") return "flex-col-reverse";
+  if (settingsStore.editorSettings.tabPlacement === "right") return "flex-row-reverse";
+  return isVerticalTabPlacement.value ? "flex-row" : "flex-col";
+});
 
 // Every pane's vertical strip writes back to this shared width/collapse state.
 function startTabBarResize(event: MouseEvent) {
@@ -3409,7 +3417,214 @@ onUnmounted(() => {
       <div class="h-full w-full" :style="appBackgroundImageStyle"></div>
     </div>
     <TooltipProvider :delay-duration="300">
-      <div class="h-screen w-screen max-w-full min-w-[760px] min-h-[600px] flex flex-col bg-background text-foreground overflow-hidden" :class="{ 'dbx-desktop-window-frame': drawDesktopWindowFrame }" :style="appUiFontFamilyStyle">
+      <CustomSqlyogShell
+        v-if="isSqlyogLayout && !isDetachedWindowContext"
+        :is-dark="isDark"
+        :theme-mode="themeMode"
+        :show-ai-panel="showAiPanel"
+        :active-ai-run-count="activeAiRunCount"
+        :awaiting-ai-run-count="awaitingAiRunCount"
+        :show-history="showHistory"
+        :show-sql-library="showSqlLibraryPanel"
+        :sql-library-save-feedback-id="sqlLibrarySaveFeedbackId"
+        :show-sql-file-panel="showSqlFilePanel"
+        :show-driver-store="showDriverStore"
+        :show-settings-page="showSettingsPage"
+        :checking-updates="checkingUpdates"
+        :has-update-available="toolbarHasUpdateAvailable"
+        :is-downloading-update="isDownloadingUpdate"
+        :download-progress="downloadProgress"
+        :update-ready-to-install="updateDownloaded"
+        :update-ready="updateReady"
+        :agent-driver-update-count="toolbarAgentDriverUpdateCount"
+        :has-mcp-update-available="toolbarMcpUpdateAvailable"
+        :has-connections="connectionStore.connections.length > 0"
+        :has-sql-file-connections="hasSqlFileConnections"
+        :sidebar-open="sidebarOpen"
+        :sidebar-width="sidebarWidth"
+        :is-classic-layout="isClassicLayout"
+        :is-zen-mode="isZenMode"
+        :is-ai-panel-maximized="isAiPanelMaximized"
+        :ai-panel-width="aiPanelWidth"
+        :ai-panel-ready="aiPanelReady"
+        :history-width="historyWidth"
+        :sql-library-width="sqlLibraryWidth"
+        :sql-file-panel-width="sqlFilePanelWidth"
+        :driver-store-tab-open="driverStoreTabOpen"
+        :driver-store-active="driverStoreActive"
+        :driver-store-active-tab="driverStoreActiveTab"
+        :driver-store-focus="driverStoreFocus"
+        :settings-page-tab-open="settingsPageTabOpen"
+        :settings-store="settingsStore"
+        :settings-initial-tab="settingsInitialTab"
+        :settings-initial-section="settingsInitialSection"
+        :settings-navigation-request-id="settingsNavigationRequestId"
+        :settings-ai-config-draft="settingsAiConfigDraft"
+        :settings-ai-config-request-id="settingsAiConfigRequestId"
+        :app-version="appVersion"
+        :detached-drop-target-tab-id="detachedDropTargetTabId"
+        :is-desktop="isDesktop"
+        :tab-bar-width="tabBarWidth"
+        :tab-bar-collapsed="tabBarCollapsed"
+        :active-tab="activeTab"
+        :active-connection="activeConnection"
+        :executable-sql="executableSql"
+        :preview-changes-available="previewChangesAvailable"
+        :explain-mode="explainMode"
+        :block-dangerous-redis-commands="blockDangerousRedisCommands"
+        :database-required-tab-id="databaseRequiredTabId"
+        :database-required-signal="databaseRequiredSignal"
+        :is-oracle-manual-transaction="isOracleManualTransaction"
+        :active-output-view="activeOutputView"
+        :format-sql-request="formatSqlRequest"
+        :compress-sql-request="compressSqlRequest"
+        :selected-sql="selectedSql"
+        :cursor-pos="cursorPos"
+        :content-area-ref="contentAreaRef"
+        :app-sidebar-ref="appSidebarRef"
+        :app-tab-bar-ref="appTabBarRef"
+        :ai-assistant-ref="aiAssistantRef"
+        :connection-stats="connectionStats"
+        :recent-connections="recentConnections"
+        :saved-sql-history-items="savedSqlHistoryItems"
+        :update-notifications-enabled="updateNotificationsEnabled"
+        @new-connection="showConnectionDialog = true"
+        @new-query="newQuery"
+        @set-theme-mode="setThemeMode"
+        @toggle-ai="toggleRightSidebarPanel('ai')"
+        @toggle-history="toggleRightSidebarPanel('history')"
+        @toggle-sql-library="toggleRightSidebarPanel('sqlLibrary')"
+        @toggle-sql-file-panel="toggleRightSidebarPanel('sqlFile')"
+        @open-github="openGitHub"
+        @open-settings="openSettings(toolbarMcpUpdateAvailable ? 'mcp' : 'appearance')"
+        @open-driver-store="openDriverStorePage"
+        @check-updates="checkUpdates()"
+        @open-transfer="dialogs.showTransferDialog.value = true"
+        @open-sql-file="dialogs.showSqlFileDialog.value = true"
+        @open-schema-diff="dialogs.showSchemaDiffDialog.value = true"
+        @open-data-compare="dialogs.showDataCompareDialog.value = true"
+        @import="dialogs.onImportClick"
+        @export="dialogs.onExportClick"
+        @start-sidebar-resize="startSidebarResize"
+        @set-sidebar-open="setSidebarOpen"
+        @add-to-ai="addToAi"
+        @toggle-zen-mode="toggleZenMode"
+        @activate-settings-page="activateSettingsPage"
+        @close-settings-page="closeSettingsPage"
+        @activate-driver-store="openDriverStorePage"
+        @close-driver-store="closeDriverStorePage"
+        @locate-tab="locateTabInSidebar"
+        @activate-tab="activateQuerySurface"
+        @save-tab="handleSaveTab"
+        @discard-tab-close="handleDiscardPendingTabClose"
+        @save-all-tab-close="handleSaveAllPendingTabClose"
+        @discard-all-tab-close="handleDiscardAllPendingTabClose"
+        @cancel-tab-close="cancelPendingAppClose"
+        @detach-tab="detachTab"
+        @start-tab-bar-resize="startTabBarResize"
+        @toggle-tab-bar-collapse="toggleTabBarCollapsed"
+        @update:driver-store-active-tab="(t: 'agent' | 'jdbc' | 'storage' | 'runtime') => (driverStoreActiveTab = t)"
+        @update-agent-driver-update-count="updateAgentDriverUpdateCount"
+        @update:explain-mode="(m: 'explain' | 'autotrace') => (explainMode = m)"
+        @update:block-dangerous-redis-commands="(v: boolean) => (blockDangerousRedisCommands = v)"
+        @update:auto-commit="
+          (v: boolean) => {
+            if (activeTab) queryStore.setAutoCommit(activeTab.id, v);
+          }
+        "
+        @commit="activeTab && queryStore.commitTransaction(activeTab.id)"
+        @rollback="activeTab && queryStore.rollbackTransaction(activeTab.id)"
+        @dismiss-txn-rolled-back="activeTab && (activeTab.txnAutoRolledBack = false)"
+        @execute-pointer-down="captureActiveEditorExecutionSnapshot()"
+        @execute="requestActiveEditorExecute($event)"
+        @preview-changes="requestActiveEditorPreviewChanges()"
+        @multi-execute="requestMultiDbExecute()"
+        @cancel="cancelActiveExecution()"
+        @explain="tryExplain()"
+        @format-sql="formatActiveSql"
+        @compress-sql="compressActiveSql"
+        @toggle-sql-keyword-case="toggleSqlKeywordCase"
+        @save-sql="void openSaveSqlDialog()"
+        @open-sql="openSqlFile"
+        @import-result-archive="importResultArchive"
+        @paste-sql-in-condition="pasteClipboardAsSqlInCondition"
+        @change-connection="changeActiveConnection"
+        @change-database="changeActiveDatabase"
+        @change-catalog="changeActiveCatalog"
+        @change-schema="changeActiveSchema"
+        @set-default-database="setActiveDatabaseAsDefault"
+        @clear-default-database="clearActiveDefaultDatabase"
+        @update:active-output-view="activeOutputView = $event"
+        @fix-with-ai="fixWithAi"
+        @send-selection-to-ai="sendSelectionToAi"
+        @execute-in-new-result-tab="tryExecuteInNewResultTab($event)"
+        @editor-update="(tabId: string, v: string) => queryStore.updateSql(tabId, v)"
+        @editor-selection-change="(v: string) => (selectedSql = v)"
+        @editor-cursor-change="(p: number) => (cursorPos = p)"
+        @preview-changes-available="(v: boolean) => (previewChangesAvailable = v)"
+        @editor-viewport-change="(tabId: string, viewport: { scrollTop: number; scrollLeft: number }) => queryStore.updateEditorViewport(tabId, viewport)"
+        @editor-selection-state-change="(tabId: string, selection: { anchor: number; head: number }) => queryStore.updateEditorSelection(tabId, selection)"
+        @format-error="toast(t('toolbar.formatSqlFailed'))"
+        @reload="(sql, searchText, whereInput, orderBy, limit, offset, intent) => onReloadData(sql, searchText, whereInput, orderBy, limit, offset, intent)"
+        @paginate="onPaginate"
+        @sort="onSort"
+        @execute-sql="onExecuteSql"
+        @click-table="onClickTable"
+        @view-table-data="onViewTableData"
+        @edit-table-structure="onEditTableStructure"
+        @view-table-ddl="onViewTableDdl"
+        @open-object-source="onOpenObjectSource"
+        @open-object-table="
+          (target: any) =>
+            activeTab &&
+            openObjectBrowserTableTarget({
+              connectionId: activeTab.connectionId,
+              database: activeTab.database,
+              schema: target.schema,
+              catalog: target.catalog,
+              tableName: target.tableName,
+              tableType: target.tableType,
+            })
+        "
+        @object-schema-change="(schema: string) => activeTab && queryStore.updateSchema(activeTab.id, schema)"
+        @object-browser-viewport-change="(tabId: string, viewport: any) => queryStore.updateObjectBrowserViewport(tabId, viewport)"
+        @structure-editor-saved="
+          (commentChanged: boolean) =>
+            activeTab &&
+            onStructureEditorSaved(
+              onReloadData,
+              toast,
+              {
+                connectionId: activeTab.connectionId,
+                database: activeTab.database,
+                schema: activeTab.schema,
+                catalog: activeTab.catalog,
+                tableName: activeTab.structureTableName || '',
+              },
+              commentChanged,
+            )
+        "
+        @structure-editor-close="activeTab && queryStore.closeTab(activeTab.id)"
+        @open-connection-settings="openConnectionSettings"
+        @open-connection-query="openConnectionQuery"
+        @open-saved-sql="openSavedSqlFromWelcome"
+        @open-mcp-guide="openMcpGuide"
+        @start-ai-panel-resize="startAiPanelResize"
+        @start-history-resize="startHistoryResize"
+        @start-sql-library-resize="startSqlLibraryResize"
+        @start-sql-file-panel-resize="startSqlFilePanelResize"
+        @toggle-ai-maximize="toggleAiPanelMaximized"
+        @close-right-panel="closeRightSidebarPanel"
+        @ai-append-sql="onAiAppendSql"
+        @ai-execute-sql="onAiExecuteSql"
+        @ai-temp-run-sql="onAiTempRunSql"
+        @ai-request-auto-execute-sql="onAiRequestAutoExecuteSql"
+        @ai-route-redis-command="(cmd: string, exec: boolean) => routeAiRedisCommand(cmd, exec)"
+        @ai-open-explain-plan="onAiOpenExplainPlan"
+        @restore-history-sql="restoreHistorySql"
+        @analyze-history-ai="analyzeHistoryWithAi"
+      />
+      <div v-else class="h-screen w-screen max-w-full min-w-[760px] min-h-[600px] flex flex-col bg-background text-foreground overflow-hidden" :class="{ 'dbx-desktop-window-frame': drawDesktopWindowFrame }" :style="appUiFontFamilyStyle">
         <AppToolbar
           v-if="!isDetachedWindowContext"
           :is-dark="isDark"
@@ -3736,94 +3951,90 @@ onUnmounted(() => {
             </div>
           </div>
         </div>
-
-        <AppDialogs
-          :show-connection-dialog="showConnectionDialog"
-          :connection-prefill="connectionDialogPrefill"
-          :connection-initial-tab="connectionDialogInitialTab"
-          :show-danger-dialog="showDangerDialog"
-          :danger-sql="dangerSql"
-          :suppress-danger-confirm="suppressDangerConfirm"
-          :active-database-type="activeConnection?.db_type"
-          :show-sql-parameter-dialog="showSqlParameterDialog"
-          :sql-parameter-source-sql="sqlParameterSourceSql"
-          :sql-parameter-names="sqlParameterNames"
-          :sql-parameter-database-type="sqlParameterDatabaseType"
-          :sql-parameter-enabled-syntaxes="sqlParameterEnabledSyntaxes"
-          @update:show-connection-dialog="setConnectionDialogOpen"
-          @update:show-danger-dialog="showDangerDialog = $event"
-          @update:suppress-danger-confirm="suppressDangerConfirm = $event"
-          @update:show-sql-parameter-dialog="showSqlParameterDialog = $event"
-          @danger-confirm="onDangerConfirm"
-          @sql-parameters-confirm="onSqlParametersConfirm"
-          @connect-started="(name: string) => toast(t('connection.connecting', { name }), 30000)"
-          @connect-succeeded="(name: string) => toast(t('connection.connectSuccess', { name }), 2000)"
-          @connect-failed="
-            (msg: string) =>
-              toast(
-                t('connection.connectFailed', {
-                  message: translateBackendError(t, msg),
-                }),
-                5000,
-              )
-          "
-          @open-driver-store="
-            setConnectionDialogOpen(false);
-            openDriverStorePage($event);
-          "
-          @open-tunnel-profile-settings="
-            setConnectionDialogOpen(false);
-            openSettings('tunnels');
-          "
-          @open-connection-settings="
-            setConnectionDialogOpen(false);
-            openConnectionSettings($event, 'advanced');
-          "
-          @open-lineage-target="openLineageTarget"
-          @open-database-search-target="openDatabaseSearchTarget"
-          @open-diagram-target="openDiagramTarget"
-        />
-        <MultiDbExecuteDialog
-          v-model:open="showMultiDbExecuteDialog"
-          :sql="multiExecuteSql"
-          :source-tab-id="multiExecuteSourceTabId"
-          :database-type="multiExecuteDatabaseType"
-          :initial-targets="multiExecuteInitialTargets"
-          :launch-id="multiExecuteLaunchId"
-          :execute-target="executeMultiDbTarget"
-          :cancel-target="cancelMultiDbTarget"
-          :cancel-pending="cancelPendingMultiDbTarget"
-          :source-offset="multiExecuteSourceOffset"
-        />
-        <UpdateDialog
-          v-if="showUpdateDialog"
-          v-model:open="showUpdateDialog"
-          :update-info="updateInfo"
-          :update-check-message="updateCheckMessage"
-          :checking-updates="checkingUpdates"
-          :update-check-failed="updateCheckFailed"
-          :update-download-source="settingsStore.editorSettings.updateDownloadSource"
-          :is-downloading-update="isDownloadingUpdate"
-          :download-progress="downloadProgress"
-          :update-downloaded="updateDownloaded"
-          :is-installing-update="isInstallingUpdate"
-          :update-ready="updateReady"
-          :is-ignoring-update="isIgnoringUpdate"
-          :active-task-count="activeUpdateTaskCount"
-          @open-latest-release="openLatestRelease"
-          @change-download-source="changeUpdateDownloadSource"
-          @download-in-background="downloadUpdateInBackground"
-          @cancel-download="cancelDownload"
-          @install-downloaded="installDownloadedUpdate"
-          @restart="restartApp"
-          @ignore-version="ignoreCurrentVersion"
-        />
-        <ExternalSqlFileChangeDialog :prompt="externalSqlFilePrompt" @decide="externalSqlFileChanges.resolvePrompt" />
-        <CloseActionPromptDialog v-if="isDesktop && showCloseActionPrompt" :open="showCloseActionPrompt" @update:open="handleCloseActionPromptOpenChange" @quit="chooseQuit" @minimize="chooseMinimize" />
-        <AiRunsClosePromptDialog v-if="isDesktop && showAiRunsClosePrompt" v-model:open="showAiRunsClosePrompt" :count="blockingAiRunCount" @cancel="cancelPendingAppClose" @quit="confirmQuitWithActiveAiRuns" />
-        <QuickOpenDialog :open="showQuickOpen" @update:open="showQuickOpen = $event" @select="handleQuickOpenSelect" />
-        <TabSwitcherDialog :open="showTabSwitcher" :tabs="tabSwitcherTabs" :selected-index="tabSwitcherIndex" :shortcut-hint="tabSwitcherShortcutHint" @update:open="handleTabSwitcherOpenChange" @update:selected-index="tabSwitcherIndex = $event" @select="handleTabSwitcherSelect" />
       </div>
+
+      <AppDialogs
+        :show-connection-dialog="showConnectionDialog"
+        :connection-prefill="connectionDialogPrefill"
+        :connection-initial-tab="connectionDialogInitialTab"
+        :show-danger-dialog="showDangerDialog"
+        :danger-sql="dangerSql"
+        :suppress-danger-confirm="suppressDangerConfirm"
+        :active-database-type="activeConnection?.db_type"
+        :show-sql-parameter-dialog="showSqlParameterDialog"
+        :sql-parameter-source-sql="sqlParameterSourceSql"
+        :sql-parameter-names="sqlParameterNames"
+        :sql-parameter-database-type="sqlParameterDatabaseType"
+        :sql-parameter-enabled-syntaxes="sqlParameterEnabledSyntaxes"
+        @update:show-connection-dialog="setConnectionDialogOpen"
+        @update:show-danger-dialog="showDangerDialog = $event"
+        @update:suppress-danger-confirm="suppressDangerConfirm = $event"
+        @update:show-sql-parameter-dialog="showSqlParameterDialog = $event"
+        @danger-confirm="onDangerConfirm"
+        @sql-parameters-confirm="onSqlParametersConfirm"
+        @connect-started="(name: string) => toast(t('connection.connecting', { name }), 30000)"
+        @connect-succeeded="(name: string) => toast(t('connection.connectSuccess', { name }), 2000)"
+        @connect-failed="
+          (msg: string) =>
+            toast(
+              t('connection.connectFailed', {
+                message: translateBackendError(t, msg),
+              }),
+              5000,
+            )
+        "
+        @open-driver-store="
+          setConnectionDialogOpen(false);
+          openDriverStorePage($event);
+        "
+        @open-tunnel-profile-settings="
+          setConnectionDialogOpen(false);
+          openSettings('tunnels');
+        "
+        @open-lineage-target="openLineageTarget"
+        @open-database-search-target="openDatabaseSearchTarget"
+        @open-diagram-target="openDiagramTarget"
+      />
+      <MultiDbExecuteDialog
+        v-model:open="showMultiDbExecuteDialog"
+        :sql="multiExecuteSql"
+        :source-tab-id="multiExecuteSourceTabId"
+        :database-type="multiExecuteDatabaseType"
+        :initial-targets="multiExecuteInitialTargets"
+        :launch-id="multiExecuteLaunchId"
+        :execute-target="executeMultiDbTarget"
+        :cancel-target="cancelMultiDbTarget"
+        :cancel-pending="cancelPendingMultiDbTarget"
+        :source-offset="multiExecuteSourceOffset"
+      />
+      <UpdateDialog
+        v-if="showUpdateDialog"
+        v-model:open="showUpdateDialog"
+        :update-info="updateInfo"
+        :update-check-message="updateCheckMessage"
+        :checking-updates="checkingUpdates"
+        :update-check-failed="updateCheckFailed"
+        :update-download-source="settingsStore.editorSettings.updateDownloadSource"
+        :is-downloading-update="isDownloadingUpdate"
+        :download-progress="downloadProgress"
+        :update-downloaded="updateDownloaded"
+        :is-installing-update="isInstallingUpdate"
+        :update-ready="updateReady"
+        :is-ignoring-update="isIgnoringUpdate"
+        :active-task-count="activeUpdateTaskCount"
+        @open-latest-release="openLatestRelease"
+        @change-download-source="changeUpdateDownloadSource"
+        @download-in-background="downloadUpdateInBackground"
+        @cancel-download="cancelDownload"
+        @install-downloaded="installDownloadedUpdate"
+        @restart="restartApp"
+        @ignore-version="ignoreCurrentVersion"
+      />
+      <ExternalSqlFileChangeDialog :prompt="externalSqlFilePrompt" @decide="externalSqlFileChanges.resolvePrompt" />
+      <CloseActionPromptDialog v-if="isDesktop && showCloseActionPrompt" :open="showCloseActionPrompt" @update:open="handleCloseActionPromptOpenChange" @quit="chooseQuit" @minimize="chooseMinimize" />
+      <AiRunsClosePromptDialog v-if="isDesktop && showAiRunsClosePrompt" v-model:open="showAiRunsClosePrompt" :count="blockingAiRunCount" @cancel="cancelPendingAppClose" @quit="confirmQuitWithActiveAiRuns" />
+      <QuickOpenDialog :open="showQuickOpen" @update:open="showQuickOpen = $event" @select="handleQuickOpenSelect" />
+      <TabSwitcherDialog :open="showTabSwitcher" :tabs="tabSwitcherTabs" :selected-index="tabSwitcherIndex" :shortcut-hint="tabSwitcherShortcutHint" @update:open="handleTabSwitcherOpenChange" @update:selected-index="tabSwitcherIndex = $event" @select="handleTabSwitcherSelect" />
       <Teleport to="body">
         <FileText
           v-if="sqlLibraryFlyAnimation"

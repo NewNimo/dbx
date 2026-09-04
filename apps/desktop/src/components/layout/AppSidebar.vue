@@ -18,6 +18,7 @@ import type { QueryTab, TreeNode } from "@/types/database";
 defineProps<{
   sidebarWidth: number;
   classicLayout?: boolean;
+  focusedConnectionId?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -293,7 +294,7 @@ defineExpose({ focusSearch, locateTabInSidebar });
         </template>
       </div>
       <div class="flex-1 min-h-0">
-        <ConnectionTree ref="connectionTreeRef" @open-settings="(initialTab) => emit('open-settings', initialTab)" @add-to-ai="(nodes) => emit('add-to-ai', nodes)" />
+        <ConnectionTree ref="connectionTreeRef" :focused-connection-id="focusedConnectionId" @open-settings="(initialTab) => emit('open-settings', initialTab)" @add-to-ai="(nodes) => emit('add-to-ai', nodes)" />
       </div>
     </div>
     <div class="panel-resize-handle panel-resize-handle--right" @mousedown="emit('startResize', $event)" />

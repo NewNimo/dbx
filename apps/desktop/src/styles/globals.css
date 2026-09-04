@@ -2772,3 +2772,29 @@ html.dbx-bg-active .cm-editor,
 html.dbx-bg-active .cm-gutters {
   background-color: transparent !important;
 }
+
+/* ========== 自定义布局扩展专区 (custom 分支: SQLyog 多连接工作区) ========== */
+.custom-sqlyog-layout {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.custom-connection-tab-bar {
+  background: var(--dbx-chrome, var(--muted));
+  border-color: var(--border);
+}
+
+.custom-sqlyog-layout .app-sidebar-panel {
+  background: var(--sidebar);
+  color: var(--sidebar-foreground);
+  border-right: 1px solid var(--border);
+}
+
+.custom-sqlyog-layout .app-editor-toolbar {
+  background: var(--dbx-editor-toolbar, var(--background));
+  border-color: var(--border);
+}
+
