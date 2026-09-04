@@ -86,9 +86,9 @@ export default defineConfig(async () => ({
     },
   },
   server: {
-    port: isTauri ? 1420 : undefined,
-    strictPort: isTauri,
-    host: host || false,
+    port: 1420,
+    strictPort: true,
+    host: host || "127.0.0.1",
     hmr: host
       ? {
           protocol: "ws",
