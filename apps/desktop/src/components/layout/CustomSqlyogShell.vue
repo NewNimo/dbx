@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { watch } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
-import { ChevronsRight } from "@lucide/vue";
+import { ChevronsRight, AlertTriangle, Table2, FileCode } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import AppToolbar from "@/components/layout/AppToolbar.vue";
 import CustomConnectionTabBar from "@/components/layout/CustomConnectionTabBar.vue";
 import AppSidebar from "@/components/layout/AppSidebar.vue";
@@ -17,6 +18,8 @@ import SqlFilePanel from "@/components/layout/SqlFilePanel.vue";
 import { useCustomConnectionTabs } from "@/composables/useCustomConnectionTabs";
 import { useConnectionStore } from "@/stores/connectionStore";
 import { useQueryStore } from "@/stores/queryStore";
+import { hasDataGridPendingChangesForTab } from "@/composables/useDataGridEditor";
+import { tabDisplayTitle } from "@/lib/tabs/tabPresentation";
 import type { AppThemeMode } from "@/lib/app/appTheme";
 import type { QueryTab, TreeNode } from "@/types/database";
 
@@ -225,22 +228,77 @@ const connectionStore = useConnectionStore();
 const queryStore = useQueryStore();
 const customConnectionTabs = useCustomConnectionTabs();
 
+// Keep connectionStore.activeConnectionId in sync with custom active connection
+watch(
+  () => customConnectionTabs.activeConnectionId.value,
+  (connId) => {
+    if (connId && connectionStore.activeConnectionId !== connId) {
+      connectionStore.activeConnectionId = connId;
+    }
+  },
+  { immediate: true },
+);
+
+let previousTabsCount = queryStore.tabs.length;
+
 // Sync active tab connection to connection tabs and remember last active tab
 watch(
-  () => [queryStore.activeTabId, props.activeTab?.connectionId] as const,
-  ([tabId, connId]) => {
+  () => [queryStore.activeTabId, props.activeTab?.connectionId, queryStore.tabs.length] as const,
+  ([tabId, connId, currentTabsCount]) => {
+    const wasTabClosed = currentTabsCount < previousTabsCount;
+    previousTabsCount = currentTabsCount;
+
+    const currentConnId = customConnectionTabs.activeConnectionId.value;
+
     if (tabId && connId) {
-      if (!customConnectionTabs.openedConnectionIds.value.includes(connId)) {
-        customConnectionTabs.openConnectionTab(connId);
-      }
-      customConnectionTabs.setLastActiveTab(connId, tabId);
-      if (customConnectionTabs.activeConnectionId.value !== connId) {
+      if (currentConnId === connId) {
+        // Active tab is within the current connection
+        customConnectionTabs.setLastActiveTab(connId, tabId);
+      } else {
+        // Active tab belongs to a different connection
+        if (wasTabClosed && currentConnId) {
+          // A tab in current connection was closed, and queryStore fell back to a tab in another connection.
+          // Stay in the current connection workspace:
+          const remainingInCurrent = queryStore.tabs.filter((t) => t.connectionId === currentConnId);
+          if (remainingInCurrent.length > 0) {
+            const nextTab = remainingInCurrent[remainingInCurrent.length - 1]!;
+            queryStore.activeTabId = nextTab.id;
+            customConnectionTabs.setLastActiveTab(currentConnId, nextTab.id);
+          } else {
+            queryStore.activeTabId = null;
+            customConnectionTabs.setLastActiveTab(currentConnId, null);
+          }
+          return;
+        }
+
+        // Explicit navigation to a tab in another connection (e.g. QuickOpen / TabSwitcher)
+        if (!customConnectionTabs.openedConnectionIds.value.includes(connId)) {
+          customConnectionTabs.openConnectionTab(connId);
+        }
+        customConnectionTabs.setLastActiveTab(connId, tabId);
         customConnectionTabs.activateConnectionTab(connId);
         connectionStore.activeConnectionId = connId;
       }
+    } else if (!tabId && currentConnId) {
+      customConnectionTabs.setLastActiveTab(currentConnId, null);
     }
   },
 );
+
+onMounted(() => {
+  const activeConnId = customConnectionTabs.activeConnectionId.value;
+  if (activeConnId) {
+    connectionStore.activeConnectionId = activeConnId;
+    const lastTabId = customConnectionTabs.getLastActiveTab(activeConnId);
+    const matchingTab = (lastTabId ? queryStore.tabs.find((t) => t.id === lastTabId && t.connectionId === activeConnId) : null) || queryStore.tabs.find((t) => t.connectionId === activeConnId);
+
+    if (matchingTab) {
+      queryStore.activeTabId = matchingTab.id;
+    } else if (props.activeTab && props.activeTab.connectionId !== activeConnId) {
+      queryStore.activeTabId = null;
+    }
+  }
+});
 
 // When active connection changes, set active connection in store and pick last active or first matching tab
 function handleActivateConnection(connId: string) {
@@ -264,7 +322,68 @@ function handleOpenConnection(connId: string) {
   handleActivateConnection(connId);
 }
 
+const showCloseConnectionConfirm = ref(false);
+const pendingCloseConnectionId = ref<string | null>(null);
+const dirtyConnectionTabs = ref<QueryTab[]>([]);
+const pendingCloseConnectionName = computed(() => {
+  if (!pendingCloseConnectionId.value) return "";
+  return connectionStore.getConfig(pendingCloseConnectionId.value)?.name || pendingCloseConnectionId.value;
+});
+
+function isConnectionTabDirty(tab: QueryTab): boolean {
+  if (queryStore.isTabDirty(tab)) return true;
+  if (tab.pendingDataChangeCount && tab.pendingDataChangeCount > 0) return true;
+  if (tab.hasPendingDataEditorDraft) return true;
+  if (tab.txnSessionId) return true;
+  if (hasDataGridPendingChangesForTab(tab.id)) return true;
+  return false;
+}
+
+function dirtyReasonDescription(tab: QueryTab): string {
+  if (tab.txnSessionId) {
+    return t("toolbar.manualTransaction") || "事务未提交";
+  }
+  if ((tab.pendingDataChangeCount && tab.pendingDataChangeCount > 0) || tab.hasPendingDataEditorDraft || hasDataGridPendingChangesForTab(tab.id)) {
+    return t("grid.pendingChanges", { count: tab.pendingDataChangeCount || 1 }) || "数据未提交";
+  }
+  if (tab.mode === "structure") {
+    return "表结构未保存";
+  }
+  return t("editor.unsavedChangesTitle") || "未保存更改";
+}
+
+function getDirtyTabsForConnection(connId: string): QueryTab[] {
+  return queryStore.tabs.filter((t) => t.connectionId === connId && isConnectionTabDirty(t));
+}
+
 function handleCloseConnection(connId: string) {
+  const dirtyTabs = getDirtyTabsForConnection(connId);
+  if (dirtyTabs.length > 0) {
+    pendingCloseConnectionId.value = connId;
+    dirtyConnectionTabs.value = dirtyTabs;
+    showCloseConnectionConfirm.value = true;
+    return;
+  }
+  executeCloseConnection(connId);
+}
+
+function confirmDiscardAndCloseConnection() {
+  if (!pendingCloseConnectionId.value) return;
+  const connId = pendingCloseConnectionId.value;
+  showCloseConnectionConfirm.value = false;
+  pendingCloseConnectionId.value = null;
+  dirtyConnectionTabs.value = [];
+  executeCloseConnection(connId);
+}
+
+function cancelCloseConnection() {
+  showCloseConnectionConfirm.value = false;
+  pendingCloseConnectionId.value = null;
+  dirtyConnectionTabs.value = [];
+}
+
+function executeCloseConnection(connId: string) {
+  queryStore.closeConnectionTabs(connId, { force: true });
   customConnectionTabs.closeConnectionTab(connId);
   if (customConnectionTabs.activeConnectionId.value) {
     handleActivateConnection(customConnectionTabs.activeConnectionId.value);
@@ -554,5 +673,50 @@ function handleOpenConnectionFromWelcome(connId: string) {
         </div>
       </div>
     </div>
+
+    <!-- Confirm Dialog for Closing Connection with Dirty Tabs -->
+    <Dialog
+      :open="showCloseConnectionConfirm"
+      @update:open="
+        (open) => {
+          if (!open) cancelCloseConnection();
+        }
+      "
+    >
+      <DialogContent class="min-w-0 sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle class="flex items-center gap-2 text-base font-semibold">
+            <AlertTriangle class="h-5 w-5 text-amber-500 shrink-0" />
+            <span>{{ t("editor.unsavedChangesTitle") || "未保存更改" }}</span>
+          </DialogTitle>
+        </DialogHeader>
+
+        <div class="space-y-3 py-1">
+          <p class="text-sm text-muted-foreground leading-relaxed">
+            连接 <span class="font-semibold text-foreground">「{{ pendingCloseConnectionName }}」</span> 下存在 <span class="font-semibold text-destructive">{{ dirtyConnectionTabs.length }}</span> 个未保存或未提交的页面。关闭连接将丢弃所有未保存的内容并回滚事务。确定要关闭吗？
+          </p>
+
+          <div class="max-h-52 min-h-0 overflow-y-auto rounded-md border border-border/60 bg-muted/30 p-2 space-y-1">
+            <div v-for="tab in dirtyConnectionTabs" :key="tab.id" class="flex items-center justify-between gap-2 text-xs py-1.5 px-2 rounded-md bg-background/80 border border-border/40">
+              <div class="flex items-center gap-2 min-w-0 flex-1">
+                <Table2 v-if="tab.mode === 'data' || tab.mode === 'structure'" class="h-4 w-4 shrink-0 text-muted-foreground" />
+                <FileCode v-else class="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span class="truncate font-medium text-foreground">{{ tabDisplayTitle(tab, t) }}</span>
+              </div>
+              <span class="shrink-0 text-[11px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
+                {{ dirtyReasonDescription(tab) }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter class="gap-2 sm:gap-0">
+          <Button variant="outline" @click="cancelCloseConnection">
+            {{ t("common.cancel") || "取消" }}
+          </Button>
+          <Button variant="destructive" @click="confirmDiscardAndCloseConnection"> 放弃更改并关闭 </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>

@@ -1,4 +1,4 @@
-import { ref, watch, onMounted } from "vue";
+import { ref, watch } from "vue";
 import { useConnectionStore } from "@/stores/connectionStore";
 import { safeLocalStorageGet, safeLocalStorageSet } from "@/lib/backend/safeStorage";
 
@@ -23,9 +23,7 @@ export function useCustomConnectionTabs() {
       if (savedIdsRaw) {
         const parsed = JSON.parse(savedIdsRaw);
         if (Array.isArray(parsed)) {
-          // Filter out any connection IDs that no longer exist
-          const existingIds = new Set(connectionStore.connections.map((c) => c.id));
-          openedConnectionIds.value = parsed.filter((id) => typeof id === "string" && existingIds.has(id));
+          openedConnectionIds.value = parsed.filter((id) => typeof id === "string");
         }
       }
 
@@ -36,7 +34,7 @@ export function useCustomConnectionTabs() {
         }
       }
 
-      if (savedActiveRaw && openedConnectionIds.value.includes(savedActiveRaw)) {
+      if (savedActiveRaw) {
         activeConnectionId.value = savedActiveRaw;
       } else if (openedConnectionIds.value.length > 0) {
         activeConnectionId.value = openedConnectionIds.value[0] ?? null;
@@ -104,31 +102,39 @@ export function useCustomConnectionTabs() {
     }
   }
 
-  // Watch for connection deletion from store
+  // Watch for connection loading and deletion from store
   watch(
     () => connectionStore.connections.map((c) => c.id),
     (currentIds) => {
+      if (currentIds.length === 0) return;
       const validSet = new Set(currentIds);
-      const filtered = openedConnectionIds.value.filter((id) => validSet.has(id));
-      if (filtered.length !== openedConnectionIds.value.length) {
-        openedConnectionIds.value = filtered;
-        if (activeConnectionId.value && !validSet.has(activeConnectionId.value)) {
-          activeConnectionId.value = filtered[0] ?? null;
-        }
-        for (const connId of Object.keys(lastActiveTabByConnection.value)) {
-          if (!validSet.has(connId)) {
-            delete lastActiveTabByConnection.value[connId];
-          }
-        }
-        persistState();
+
+      // Filter out any connection tabs that no longer exist in connectionStore
+      const validOpened = openedConnectionIds.value.filter((id) => validSet.has(id));
+
+      // If no connection tabs are open (e.g. initial run or deleted), open the first one
+      if (validOpened.length === 0 && currentIds[0]) {
+        validOpened.push(currentIds[0]);
       }
+
+      openedConnectionIds.value = validOpened;
+
+      if (!activeConnectionId.value || !validSet.has(activeConnectionId.value) || !validOpened.includes(activeConnectionId.value)) {
+        activeConnectionId.value = validOpened[0] ?? null;
+      }
+
+      for (const connId of Object.keys(lastActiveTabByConnection.value)) {
+        if (!validSet.has(connId)) {
+          delete lastActiveTabByConnection.value[connId];
+        }
+      }
+
+      persistState();
     },
-    { deep: true },
+    { deep: true, immediate: true },
   );
 
-  onMounted(() => {
-    loadPersistedState();
-  });
+  loadPersistedState();
 
   return {
     openedConnectionIds,
