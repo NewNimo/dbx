@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineAsyncComponent, watch } from "vue";
+import { watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { ChevronsRight } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
@@ -19,9 +19,6 @@ import { useConnectionStore } from "@/stores/connectionStore";
 import { useQueryStore } from "@/stores/queryStore";
 import type { AppThemeMode } from "@/lib/app/appTheme";
 import type { QueryTab, TreeNode } from "@/types/database";
-
-const DriverStorePage = defineAsyncComponent(() => import("@/components/config/DriverStoreDialog.vue"));
-const EditorSettingsPage = defineAsyncComponent(() => import("@/components/editor/EditorSettingsDialog.vue"));
 
 const props = defineProps<{
   // Toolbar Props
@@ -328,7 +325,7 @@ function handleOpenConnectionFromWelcome(connId: string) {
       <!-- Left: Connection Object Tree Sidebar -->
       <AppSidebar
         v-if="customConnectionTabs.activeConnectionId.value"
-        v-show="sidebarOpen && !isZenMode && !driverStoreActive && !settingsStore.settingsPageActive"
+        v-show="sidebarOpen && !isZenMode"
         :ref="appSidebarRef"
         :sidebar-width="sidebarWidth"
         :classic-layout="true"
@@ -342,30 +339,30 @@ function handleOpenConnectionFromWelcome(connId: string) {
       />
 
       <!-- Collapsed Sidebar Strip -->
-      <div v-if="customConnectionTabs.activeConnectionId.value" v-show="!sidebarOpen && !isZenMode && !driverStoreActive && !settingsStore.settingsPageActive" class="flex h-full w-8 shrink-0 items-start justify-center border-r bg-background/80 pt-2">
+      <div v-if="customConnectionTabs.activeConnectionId.value" v-show="!sidebarOpen && !isZenMode" class="flex h-full w-8 shrink-0 items-start justify-center border-r bg-background/80 pt-2">
         <Button variant="ghost" size="icon" class="h-7 w-7" :title="t('sidebar.expand')" :aria-label="t('sidebar.expand')" @click="emit('set-sidebar-open', true)">
           <ChevronsRight class="h-4 w-4" />
         </Button>
       </div>
 
-      <!-- Center: Main Workspace / Tabs / Settings / DriverStore / Welcome -->
+      <!-- Center: Main Workspace / Tabs / Welcome -->
       <div v-show="!isAiPanelMaximized || isZenMode" class="flex-1 min-w-0 flex flex-col overflow-hidden bg-background">
         <!-- Level 2: Query Tabs Bar -->
         <AppTabBar
-          v-if="customConnectionTabs.activeConnectionId.value || driverStoreTabOpen || settingsPageTabOpen"
+          v-if="customConnectionTabs.activeConnectionId.value"
           :ref="appTabBarRef"
-          :driver-store-open="driverStoreTabOpen"
-          :driver-store-active="driverStoreActive"
-          :settings-page-open="settingsPageTabOpen"
-          :settings-page-active="settingsStore.settingsPageActive"
+          :driver-store-open="false"
+          :driver-store-active="false"
+          :settings-page-open="false"
+          :settings-page-active="false"
           :agent-driver-update-count="agentDriverUpdateCount"
           :detached-drop-target="detachedDropTargetTabId !== null"
           :can-detach-tabs="isDesktop"
           :tab-bar-width="tabBarWidth"
           :tab-bar-collapsed="tabBarCollapsed"
           @toggle-zen-mode="emit('toggle-zen-mode')"
-          @activate-driver-store="emit('activate-driver-store')"
-          @activate-settings-page="emit('activate-settings-page')"
+          @activate-driver-store="emit('open-driver-store')"
+          @activate-settings-page="emit('open-settings')"
           @locate-tab="emit('locate-tab', $event)"
           @activate-tab="emit('activate-tab')"
           @close-driver-store="emit('close-driver-store')"
@@ -380,38 +377,8 @@ function handleOpenConnectionFromWelcome(connId: string) {
           @toggle-collapse="emit('toggle-tab-bar-collapse')"
         />
 
-        <!-- Surface 1: DriverStorePage -->
-        <DriverStorePage
-          v-if="driverStoreTabOpen"
-          v-show="driverStoreActive"
-          :active-tab="driverStoreActiveTab"
-          class="flex-1 min-h-0"
-          :update-notifications-enabled="updateNotificationsEnabled"
-          :focus-target="driverStoreFocus"
-          @update:active-tab="emit('update:driver-store-active-tab', $event)"
-          @update-count-change="emit('update-agent-driver-update-count', $event)"
-        />
-
-        <!-- Surface 2: EditorSettingsPage -->
-        <EditorSettingsPage
-          v-if="settingsPageTabOpen"
-          v-show="settingsStore.settingsPageActive"
-          variant="page"
-          :open="settingsPageTabOpen"
-          :initial-tab="settingsInitialTab"
-          :initial-section="settingsInitialSection"
-          :navigation-request-id="settingsNavigationRequestId"
-          :ai-config-draft="settingsAiConfigDraft"
-          :ai-config-request-id="settingsAiConfigRequestId"
-          :app-version="appVersion"
-          :checking-updates="checkingUpdates"
-          class="flex-1 min-h-0"
-          @update:open="(open: boolean) => (open ? emit('activate-settings-page') : emit('close-settings-page'))"
-          @check-updates="emit('check-updates')"
-        />
-
-        <!-- Surface 3: Query Workspace (when activeTab is open and not on settings/driverStore) -->
-        <div v-if="activeTab" v-show="!driverStoreActive && !settingsStore.settingsPageActive" class="flex flex-col flex-1 min-h-0">
+        <!-- Query Workspace (when activeTab is open) -->
+        <div v-if="activeTab" class="flex flex-col flex-1 min-h-0">
           <EditorToolbar
             v-if="activeTab.mode === 'query'"
             :active-tab="activeTab"
@@ -449,15 +416,14 @@ function handleOpenConnectionFromWelcome(connId: string) {
             @change-connection="emit('change-connection', $event)"
             @change-database="emit('change-database', $event)"
             @change-catalog="(catalog, database) => emit('change-catalog', catalog, database)"
-            @change-schema="(schema) => emit('change-schema', schema)"
+            @change-schema="emit('change-schema', $event)"
             @set-default-database="emit('set-default-database')"
             @clear-default-database="emit('clear-default-database')"
           />
-
           <KeepAlive :max="4">
             <ContentArea
-              :ref="contentAreaRef"
               :key="activeTab.id"
+              :ref="contentAreaRef"
               :active-tab="activeTab"
               :active-connection="activeConnection"
               :executable-sql="executableSql"
@@ -475,27 +441,27 @@ function handleOpenConnectionFromWelcome(connId: string) {
               @execute-in-new-result-tab="emit('execute-in-new-result-tab', $event)"
               @cancel="emit('cancel')"
               @explain="emit('explain')"
-              @editor-update="(tabId, v) => emit('editor-update', tabId, v)"
-              @editor-selection-change="(v) => emit('editor-selection-change', v)"
-              @editor-cursor-change="(p) => emit('editor-cursor-change', p)"
-              @preview-changes-available="(v) => emit('preview-changes-available', v)"
-              @editor-viewport-change="(tabId, vp) => emit('editor-viewport-change', tabId, vp)"
-              @editor-selection-state-change="(tabId, sel) => emit('editor-selection-state-change', tabId, sel)"
+              @editor-update="(id, val) => emit('editor-update', id, val)"
+              @editor-selection-change="(val) => emit('editor-selection-change', val)"
+              @editor-cursor-change="(pos) => emit('editor-cursor-change', pos)"
+              @preview-changes-available="(val) => emit('preview-changes-available', val)"
+              @editor-viewport-change="(id, vp) => emit('editor-viewport-change', id, vp)"
+              @editor-selection-state-change="(id, sel) => emit('editor-selection-state-change', id, sel)"
               @format-error="emit('format-error')"
               @save-sql="emit('save-sql')"
-              @reload="(sql, st, wi, ob, lim, off, int) => emit('reload', sql, st, wi, ob, lim, off, int)"
-              @paginate="(offset, limit, whereInput, orderBy) => emit('paginate', offset, limit, whereInput, orderBy)"
-              @sort="(column, columnIndex, direction, whereInput, mode) => emit('sort', column, columnIndex, direction, whereInput, mode)"
-              @execute-sql="emit('execute-sql', $event)"
-              @click-table="emit('click-table', $event)"
-              @view-table-data="emit('view-table-data', $event)"
-              @edit-table-structure="emit('edit-table-structure', $event)"
-              @view-table-ddl="emit('view-table-ddl', $event)"
-              @open-object-source="emit('open-object-source', $event)"
-              @open-object-table="emit('open-object-table', $event)"
-              @object-schema-change="(s) => emit('object-schema-change', s)"
-              @object-browser-viewport-change="(tabId, vp) => emit('object-browser-viewport-change', tabId, vp)"
-              @structure-editor-saved="emit('structure-editor-saved', $event)"
+              @reload="(...args) => emit('reload', ...args)"
+              @paginate="(...args) => emit('paginate', ...args)"
+              @sort="(...args) => emit('sort', ...args)"
+              @execute-sql="(sql) => emit('execute-sql', sql)"
+              @click-table="(opts) => emit('click-table', opts)"
+              @view-table-data="(opts) => emit('view-table-data', opts)"
+              @edit-table-structure="(opts) => emit('edit-table-structure', opts)"
+              @view-table-ddl="(opts) => emit('view-table-ddl', opts)"
+              @open-object-source="(opts) => emit('open-object-source', opts)"
+              @open-object-table="(target) => emit('open-object-table', target)"
+              @object-schema-change="(schema) => emit('object-schema-change', schema)"
+              @object-browser-viewport-change="(id, vp) => emit('object-browser-viewport-change', id, vp)"
+              @structure-editor-saved="(changed) => emit('structure-editor-saved', changed)"
               @structure-editor-close="emit('structure-editor-close')"
               @open-settings="(t) => emit('open-settings', t)"
               @open-connection-settings="emit('open-connection-settings', $event)"
@@ -504,9 +470,9 @@ function handleOpenConnectionFromWelcome(connId: string) {
           </KeepAlive>
         </div>
 
-        <!-- Surface 4: WelcomeScreen (when no tabs open and not on settings/driverStore) -->
+        <!-- WelcomeScreen (when no tabs open) -->
         <WelcomeScreen
-          v-else-if="!driverStoreActive && !settingsStore.settingsPageActive"
+          v-else
           :connection-stats="connectionStats"
           :recent-connections="recentConnections"
           :saved-sql-history-items="savedSqlHistoryItems"
