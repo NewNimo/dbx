@@ -3891,6 +3891,9 @@ onUnmounted(() => {
                 @discard-all-tab-close="handleDiscardAllPendingTabClose"
                 @cancel-tab-close="cancelPendingAppClose"
                 @detach-tab="detachTab"
+                @start-resize="startTabBarResize"
+                @toggle-collapse="toggleTabBarCollapsed"
+                @new-query="newQuery"
               >
                 <DriverStorePage v-if="driverStoreTabOpen" v-show="driverStoreActive" v-model:active-tab="driverStoreActiveTab" class="flex-1 min-h-0" :update-notifications-enabled="updateNotificationsEnabled" :focus-target="driverStoreFocus" @update-count-change="updateAgentDriverUpdateCount" />
                 <PluginCenterPage v-if="pluginCenterTabOpen" v-show="pluginCenterActive" class="flex-1 min-h-0" :focus-target="pluginCenterFocus" @new-connection="openPluginConnectionDialog" />

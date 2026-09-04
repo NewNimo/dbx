@@ -1,4 +1,5 @@
 import type { ChangeSpec, EditorState, SelectionRange, Text, TransactionSpec } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 
 export interface DispatchableEditorView {
   state: EditorState;
@@ -17,6 +18,36 @@ export function replaceSelectedEditorText(view: DispatchableEditorView, insert: 
     scrollIntoView: true,
   });
   return true;
+}
+
+export function insertEditorTextAtCursor(view: DispatchableEditorView, insert: string): boolean {
+  if (view.state.readOnly) return false;
+
+  const selection = view.state.selection.main;
+  const from = selection.from;
+  const to = selection.to;
+
+  view.dispatch({
+    changes: { from, to, insert },
+    selection: { anchor: from + insert.length },
+    scrollIntoView: true,
+    userEvent: "input",
+  });
+  return true;
+}
+
+export function insertTextIntoActiveQueryEditor(text: string): boolean {
+  if (typeof document === "undefined") return false;
+  const cmEditorDom = document.querySelector<HTMLElement>("[data-query-editor-root] .cm-editor");
+  if (!cmEditorDom) return false;
+  const cmView = EditorView.findFromDOM(cmEditorDom);
+  if (!cmView) return false;
+
+  const success = insertEditorTextAtCursor(cmView, text);
+  if (success) {
+    cmView.focus();
+  }
+  return success;
 }
 
 export function blankLineDeletionChanges(doc: Text, selection: SelectionRange): ChangeSpec[] {
