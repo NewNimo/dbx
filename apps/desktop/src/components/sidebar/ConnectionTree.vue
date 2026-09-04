@@ -656,10 +656,24 @@ function restoreTableSearchInput(focusRestore: TableSearchFocusRestore) {
   });
 }
 
+function findConnectionNode(nodes: TreeNode[], connectionId: string): TreeNode | null {
+  for (const node of nodes) {
+    if (node.id === connectionId || (node.type === "connection" && node.connectionId === connectionId)) {
+      return node;
+    }
+    if (node.children && node.children.length > 0) {
+      const found = findConnectionNode(node.children, connectionId);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 const displayedTreeNodes = computed(() => {
   const nodes = sortConnectionListForDisplay(store.treeNodes, settingsStore.editorSettings.sidebarConnectionSortMode);
   if (!props.focusedConnectionId) return nodes;
-  return nodes.filter((node) => node.id === props.focusedConnectionId || node.connectionId === props.focusedConnectionId);
+  const connNode = findConnectionNode(nodes, props.focusedConnectionId);
+  return connNode ? [connNode] : [];
 });
 const localTableSearchResults = ref<Record<string, TableInfo[] | null>>({});
 const localTableSearchRequestRevisions = new Map<string, number>();

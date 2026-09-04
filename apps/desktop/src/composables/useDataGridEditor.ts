@@ -215,6 +215,17 @@ export function clearDataGridPendingSnapshot(cacheKey: string) {
   pendingChangesCache.delete(cacheKey);
 }
 
+export function hasDataGridPendingChangesForTab(tabId: string): boolean {
+  for (const [key, snapshot] of pendingChangesCache.entries()) {
+    if (cacheKeyBelongsToTab(key, tabId)) {
+      if ((snapshot.newRows && snapshot.newRows.length > 0) || (snapshot.dirtyRows && snapshot.dirtyRows.size > 0) || (snapshot.deletedRows && snapshot.deletedRows.size > 0) || (snapshot.quickEntryDraftRow && snapshot.quickEntryDraftRow.length > 0) || snapshot.transactionActive) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export function useDataGridEditor(options: UseDataGridEditorOptions) {
   const connectionStore = useConnectionStore();
   const historyStore = useHistoryStore();

@@ -111,6 +111,7 @@ function handleMenuSelect(val: string) {
           :items="addConnectionMenuItems"
           :show-trigger-label="false"
           :show-chevron="false"
+          check-position="none"
           :trigger-icon="Plus"
           trigger-class="h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted outline-none"
           trigger-icon-class="h-3.5 w-3.5"
