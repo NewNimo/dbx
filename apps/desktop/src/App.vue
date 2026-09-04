@@ -3,7 +3,7 @@ import { blockingDesktopAiRunsForUpdate } from "@/lib/ai/desktopAiRunRegistry";
 import { setupUpdatePreparation, prepareUpdateWithDraftRecovery, isUpdatePreparationActive } from "@/lib/app/updatePreparation";
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, defineAsyncComponent, provide } from "vue";
 import { useI18n } from "vue-i18n";
-import { FileText } from "@lucide/vue";
+import { ChevronsRight, FileText, Package } from "@lucide/vue";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppToolbar from "@/components/layout/AppToolbar.vue";
 import AppTabBar from "@/components/layout/AppTabBar.vue";
@@ -315,6 +315,8 @@ const setupRequired = ref(false);
 const showConnectionDialog = ref(false);
 const connectionDialogPrefill = ref<ConnectionDeepLinkDraft | null>(null);
 const connectionDialogInitialTab = ref<ConfigTab | undefined>(undefined);
+const showSettingsDialog = ref(false);
+const showDriverStoreDialog = ref(false);
 const settingsPageTabOpen = ref(false);
 const settingsInitialTab = ref("appearance");
 const settingsInitialSection = ref<string | undefined>(undefined);
@@ -331,9 +333,17 @@ const pluginCenterActive = ref(false);
 const pluginCenterFocus = ref<PluginCenterFocus | null>(null);
 const connectionPluginProvider = ref<PluginCenterFocus | null>(null);
 const settingsReturnSurface = ref<"query" | "driverStore" | "pluginCenter" | "welcome">("welcome");
-const showDriverStore = computed(() => driverStoreTabOpen.value && driverStoreActive.value);
+const showDriverStore = computed(() => (isSqlyogLayout.value ? showDriverStoreDialog.value : driverStoreTabOpen.value && driverStoreActive.value));
 const showPluginCenter = computed(() => pluginCenterTabOpen.value && pluginCenterActive.value);
-const showSettingsPage = computed(() => Boolean(settingsPageTabOpen.value && settingsStore.settingsPageActive));
+const showSettingsPage = computed(() => (isSqlyogLayout.value ? showSettingsDialog.value : Boolean(settingsPageTabOpen.value && settingsStore.settingsPageActive)));
+const driverStoreDialogStyle = {
+  width: "min(1120px, calc(100vw - 2rem))",
+  height: "min(80vh, calc(var(--dbx-viewport-height) - 2rem))",
+  minWidth: "min(780px, calc(100vw - 2rem))",
+  minHeight: "min(480px, calc(var(--dbx-viewport-height) - 2rem))",
+  maxWidth: "calc(100vw - 2rem)",
+  maxHeight: "calc(var(--dbx-viewport-height) - 2rem)",
+} as const;
 const showQuickOpen = ref(false);
 const showTabSwitcher = ref(false);
 const tabSwitcherIndex = ref(0);
@@ -1025,6 +1035,10 @@ function openSettings(initialTab = "appearance", initialSection?: string) {
   settingsInitialTab.value = initialTab;
   settingsInitialSection.value = initialSection;
   settingsNavigationRequestId.value += 1;
+  if (isSqlyogLayout.value) {
+    showSettingsDialog.value = true;
+    return;
+  }
   if (!settingsStore.settingsPageActive) {
     settingsReturnSurface.value = showDriverStore.value ? "driverStore" : showPluginCenter.value ? "pluginCenter" : activeTab.value ? "query" : "welcome";
   }
@@ -1049,6 +1063,10 @@ watch(
 );
 
 function activateSettingsPage() {
+  if (isSqlyogLayout.value) {
+    showSettingsDialog.value = true;
+    return;
+  }
   settingsPageTabOpen.value = true;
   activateMainContentSurface("settings");
 }
@@ -1068,6 +1086,7 @@ function activateOpenSpecialPageFallback() {
 }
 
 function closeSettingsPage() {
+  showSettingsDialog.value = false;
   settingsPageTabOpen.value = false;
   if (settingsReturnSurface.value === "driverStore" && driverStoreTabOpen.value) {
     activateMainContentSurface("driverStore");
@@ -1092,15 +1111,20 @@ function openDriverStorePage(target?: "agent" | "jdbc" | "storage" | "runtime" |
   } else {
     driverStoreFocus.value = target ?? null;
   }
+  if (isSqlyogLayout.value) {
+    showDriverStoreDialog.value = true;
+    return;
+  }
   driverStoreTabOpen.value = true;
   activateMainContentSurface("driverStore");
 }
 
 function closeDriverStorePage() {
+  showDriverStoreDialog.value = false;
   driverStoreTabOpen.value = false;
-  activateMainContentSurface("query");
   driverStoreActiveTab.value = "agent";
   driverStoreFocus.value = null;
+  activateMainContentSurface("query");
 }
 
 function openPluginCenterPage(focus?: PluginCenterFocus | null) {
@@ -3855,7 +3879,8 @@ onUnmounted(() => {
                 :tab-bar-width="tabBarWidth"
                 :tab-bar-collapsed="tabBarCollapsed"
                 @activate-driver-store="openDriverStorePage"
-                @activate-settings-page="activateSettingsPage"
+                @activate-settings-page="openSettings()"
+                @locate-tab="locateTabInSidebar"
                 @activate-tab="activateQueryTab"
                 @close-driver-store="closeDriverStorePage"
                 @close-plugin-center="closePluginCenterPage"
@@ -4205,6 +4230,34 @@ onUnmounted(() => {
       <AiRunsClosePromptDialog v-if="isDesktop && showAiRunsClosePrompt" v-model:open="showAiRunsClosePrompt" :count="blockingAiRunCount" @cancel="cancelPendingAppClose" @quit="confirmQuitWithActiveAiRuns" />
       <QuickOpenDialog :open="showQuickOpen" @update:open="showQuickOpen = $event" @select="handleQuickOpenSelect" />
       <TabSwitcherDialog :open="showTabSwitcher" :tabs="tabSwitcherTabs" :selected-index="tabSwitcherIndex" :shortcut-hint="tabSwitcherShortcutHint" @update:open="handleTabSwitcherOpenChange" @update:selected-index="tabSwitcherIndex = $event" @select="handleTabSwitcherSelect" />
+
+      <EditorSettingsPage
+        v-if="showSettingsDialog"
+        :open="showSettingsDialog"
+        variant="dialog"
+        :initial-tab="settingsInitialTab"
+        :initial-section="settingsInitialSection"
+        :navigation-request-id="settingsNavigationRequestId"
+        :ai-config-draft="settingsAiConfigDraft"
+        :ai-config-request-id="settingsAiConfigRequestId"
+        :app-version="appVersion"
+        :checking-updates="checkingUpdates"
+        @update:open="showSettingsDialog = $event"
+        @check-updates="checkUpdates()"
+      />
+      <Dialog :open="showDriverStoreDialog" @update:open="showDriverStoreDialog = $event">
+        <DialogContent class="max-w-none p-0 overflow-hidden flex flex-col" :style="driverStoreDialogStyle">
+          <DialogHeader class="px-6 pt-5 pb-3 border-b shrink-0">
+            <DialogTitle class="text-base font-medium flex items-center gap-2">
+              <Package class="h-4 w-4 text-primary" />
+              {{ t("toolbar.driverManager") }}
+            </DialogTitle>
+          </DialogHeader>
+          <div class="flex-1 min-h-0 overflow-hidden">
+            <DriverStorePage v-if="showDriverStoreDialog" v-model:active-tab="driverStoreActiveTab" :update-notifications-enabled="updateNotificationsEnabled" :focus-target="driverStoreFocus" @update-count-change="updateAgentDriverUpdateCount" />
+          </div>
+        </DialogContent>
+      </Dialog>
       <Teleport to="body">
         <FileText
           v-if="sqlLibraryFlyAnimation"
