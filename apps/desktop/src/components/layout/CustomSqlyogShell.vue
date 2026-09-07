@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { ChevronsRight, AlertTriangle, Table2, FileCode, Plus } from "@lucide/vue";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import AppToolbar from "@/components/layout/AppToolbar.vue";
@@ -465,6 +466,92 @@ function handleOpenConnectionFromWelcome(connId: string) {
   emit("open-connection-query", connId);
   void expandConnectionTree(connId);
 }
+
+// Single tab & batch close confirm state
+const closeConfirmDirtyCount = computed(() => queryStore.closeConfirmDirtyTabIds.length);
+const showCloseConfirmBulkActions = computed(() => closeConfirmDirtyCount.value > 1);
+const closeConfirmDirtyTabs = computed(() => queryStore.closeConfirmDirtyTabIds.map((id) => queryStore.tabs.find((tab) => tab.id === id)).filter((tab): tab is NonNullable<ReturnType<typeof queryStore.tabs.find>> => !!tab));
+const closeConfirmCurrentTitle = computed(() => {
+  const focusedTab = closeConfirmDirtyTabs.value.find((tab) => tab.id === queryStore.pendingCloseTabId) ?? closeConfirmDirtyTabs.value[0];
+  return focusedTab ? tabDisplayTitle(focusedTab, t) : "";
+});
+const closeConfirmMessage = computed(() => {
+  const params = {
+    count: closeConfirmDirtyCount.value,
+    title: closeConfirmCurrentTitle.value,
+  };
+  if (closeConfirmDirtyCount.value > 1) {
+    if (queryStore.closeConfirmContext === "app") {
+      return t("editor.unsavedChangesAppCloseMultipleMessage", params);
+    }
+    return t("editor.unsavedChangesBatchCloseMultipleMessage", params);
+  }
+  if (queryStore.closeConfirmContext === "app") {
+    return t("editor.unsavedChangesAppCloseMessage", params);
+  }
+  return t("editor.unsavedChangesMessage", params);
+});
+const closeConfirmListOpen = ref(false);
+let closeConfirmListCloseTimer: ReturnType<typeof setTimeout> | null = null;
+function openCloseConfirmList() {
+  if (closeConfirmListCloseTimer) {
+    clearTimeout(closeConfirmListCloseTimer);
+    closeConfirmListCloseTimer = null;
+  }
+  closeConfirmListOpen.value = true;
+}
+
+function scheduleCloseConfirmListClose() {
+  if (closeConfirmListCloseTimer) {
+    clearTimeout(closeConfirmListCloseTimer);
+  }
+  closeConfirmListCloseTimer = setTimeout(() => {
+    closeConfirmListOpen.value = false;
+    closeConfirmListCloseTimer = null;
+  }, 120);
+}
+
+onUnmounted(() => {
+  if (closeConfirmListCloseTimer) {
+    clearTimeout(closeConfirmListCloseTimer);
+    closeConfirmListCloseTimer = null;
+  }
+});
+
+watch(
+  () => queryStore.showCloseConfirm,
+  (open) => {
+    if (!open) {
+      closeConfirmListOpen.value = false;
+    }
+  },
+);
+
+function handleSaveAndClose() {
+  const id = queryStore.saveAndClosePendingTab();
+  if (id) {
+    emit("save-tab", id);
+  }
+}
+
+function handleDiscardAndClose() {
+  queryStore.forceClosePendingTab();
+  emit("discard-tab-close");
+}
+
+function handleSaveAllAndClose() {
+  emit("save-all-tab-close");
+}
+
+function handleDiscardAllAndClose() {
+  queryStore.forceCloseAllPendingTabs();
+  emit("discard-all-tab-close");
+}
+
+function handleCancelClose() {
+  queryStore.cancelClosePendingTab();
+  emit("cancel-tab-close");
+}
 </script>
 
 <template>
@@ -772,6 +859,60 @@ function handleOpenConnectionFromWelcome(connId: string) {
             {{ t("common.cancel") || "取消" }}
           </Button>
           <Button variant="destructive" @click="confirmDiscardAndCloseConnection"> 放弃更改并关闭 </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <!-- Confirm Dialog for Closing Unsaved Tab -->
+    <Dialog
+      :open="queryStore.showCloseConfirm"
+      @update:open="
+        (open) => {
+          if (!open) queryStore.cancelClosePendingTab();
+        }
+      "
+    >
+      <DialogContent class="min-w-0 sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle class="flex items-center gap-2">
+            <AlertTriangle class="h-5 w-5 text-amber-500" />
+            {{ t("editor.unsavedChangesTitle") }}
+          </DialogTitle>
+        </DialogHeader>
+        <div class="max-h-120 min-h-0 min-w-0 overflow-y-auto space-y-2">
+          <p class="wrap-anywhere text-sm text-muted-foreground">{{ closeConfirmMessage }}</p>
+          <Popover v-if="showCloseConfirmBulkActions" :open="closeConfirmListOpen" @update:open="closeConfirmListOpen = $event">
+            <PopoverTrigger as-child>
+              <button
+                type="button"
+                class="inline-flex items-center text-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                @mouseenter="openCloseConfirmList"
+                @mouseleave="scheduleCloseConfirmListClose"
+              >
+                {{ t("editor.unsavedChangesViewList", { count: closeConfirmDirtyCount }) }}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" side="bottom" class="w-72 max-w-[calc(100vw-2rem)] gap-1 p-2" @mouseenter="openCloseConfirmList" @mouseleave="scheduleCloseConfirmListClose" @pointerdown.stop @click.stop @keydown.stop>
+              <div class="px-2 pb-1 text-xs font-medium text-muted-foreground">
+                {{ t("editor.unsavedChangesListTitle", { count: closeConfirmDirtyCount }) }}
+              </div>
+              <div class="max-h-48 overflow-y-auto">
+                <div v-for="tab in closeConfirmDirtyTabs" :key="tab.id" class="flex min-w-0 items-center gap-2 rounded-[6px] px-2 py-1.5 text-sm" :class="tab.id === queryStore.pendingCloseTabId ? 'bg-muted text-foreground' : 'text-muted-foreground'">
+                  <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="tab.id === queryStore.pendingCloseTabId ? 'bg-foreground' : 'bg-muted-foreground/50'" />
+                  <span class="min-w-0 truncate">
+                    {{ tabDisplayTitle(tab, t) }}
+                  </span>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+        <DialogFooter class="min-w-0 sm:flex-wrap">
+          <Button variant="outline" @click="handleCancelClose">{{ t("common.cancel") }}</Button>
+          <Button v-if="showCloseConfirmBulkActions" variant="secondary" class="border-border" @click="handleDiscardAllAndClose">{{ t("editor.discardAllChanges") }}</Button>
+          <Button v-if="showCloseConfirmBulkActions" @click="handleSaveAllAndClose">{{ t("editor.saveAllChanges") }}</Button>
+          <Button variant="secondary" class="border-border" @click="handleDiscardAndClose">{{ t("editor.discardChanges") }}</Button>
+          <Button @click="handleSaveAndClose">{{ t("savedSql.save") }}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
