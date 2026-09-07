@@ -20,6 +20,7 @@ import { useConnectionStore } from "@/stores/connectionStore";
 import { useQueryStore } from "@/stores/queryStore";
 import { hasDataGridPendingChangesForTab } from "@/composables/useDataGridEditor";
 import { tabDisplayTitle } from "@/lib/tabs/tabPresentation";
+import { effectiveDatabaseTypeForConnection } from "@/lib/database/jdbcDialect";
 import type { AppThemeMode } from "@/lib/app/appTheme";
 import type { QueryTab, TreeNode } from "@/types/database";
 
@@ -84,7 +85,6 @@ const props = defineProps<{
   blockDangerousRedisCommands: boolean;
   databaseRequiredTabId: string | null;
   databaseRequiredSignal: number;
-  isOracleManualTransaction: boolean;
   activeOutputView: any;
   formatSqlRequest?: { id: number; tabId: string } | null;
   compressSqlRequest?: { id: number; tabId: string } | null;
@@ -185,20 +185,20 @@ const emit = defineEmits<{
   "editor-viewport-change": [tabId: string, viewport: any];
   "editor-selection-state-change": [tabId: string, selection: any];
   "format-error": [];
-  reload: [sql?: string, searchText?: string, whereInput?: string, orderBy?: string, limit?: number, offset?: number, intent?: any];
-  paginate: [offset: number, limit: number, whereInput?: string, orderBy?: string];
-  sort: [column: string, columnIndex: number, direction: "desc" | "asc" | null, whereInput?: string, mode?: any];
-  "execute-sql": [sql: string];
-  "click-table": [options: any];
-  "view-table-data": [options: any];
-  "edit-table-structure": [options: any];
-  "view-table-ddl": [options: any];
-  "open-object-source": [options: any];
-  "open-object-table": [target: any];
-  "object-schema-change": [schema: string | undefined];
+  reload: [tabId: string, sql?: string, searchText?: string, whereInput?: string, orderBy?: string, limit?: number, offset?: number, intent?: any];
+  paginate: [tabId: string, offset: number, limit: number, whereInput?: string, orderBy?: string];
+  sort: [tabId: string, column: string, columnIndex: number, direction: "desc" | "asc" | null, whereInput?: string, mode?: any];
+  "execute-sql": [tabId: string, sql: string];
+  "click-table": [tabId: string, options: any];
+  "view-table-data": [tabId: string, options: any];
+  "edit-table-structure": [tabId: string, options: any];
+  "view-table-ddl": [tabId: string, options: any];
+  "open-object-source": [tabId: string, options: any, initialEditing?: boolean];
+  "open-object-table": [tabId: string, target: any];
+  "object-schema-change": [tabId: string, schema: string | undefined];
   "object-browser-viewport-change": [tabId: string, viewport: any];
-  "structure-editor-saved": [commentChanged: boolean];
-  "structure-editor-close": [];
+  "structure-editor-saved": [tabId: string, commentChanged: boolean];
+  "structure-editor-close": [tabId: string];
   "open-connection-settings": [connectionId: string];
 
   // Welcome Screen Actions
@@ -218,15 +218,18 @@ const emit = defineEmits<{
   "ai-temp-run-sql": [sql: string];
   "ai-request-auto-execute-sql": [sql: string];
   "ai-route-redis-command": [command: string, execute: boolean];
-  "ai-open-explain-plan": [data: any];
+  "ai-open-explain-plan": [data?: any];
   "restore-history-sql": [item: any];
   "analyze-history-ai": [item: any];
+  "open-explain-plan": [];
 }>();
 
 const { t } = useI18n();
 const connectionStore = useConnectionStore();
 const queryStore = useQueryStore();
 const customConnectionTabs = useCustomConnectionTabs();
+
+const isOracleManualTransaction = computed(() => effectiveDatabaseTypeForConnection(props.activeConnection) === "oracle" && (props.activeTab?.autoCommit ?? true) === false);
 
 // Keep connectionStore.activeConnectionId in sync with custom active connection
 watch(
@@ -611,37 +614,37 @@ function handleOpenConnectionFromWelcome(connId: string) {
               :cursor-pos="cursorPos"
               :block-dangerous-redis-commands="blockDangerousRedisCommands"
               :zen-mode="isZenMode"
-              @update:active-output-view="emit('update:active-output-view', $event)"
-              @fix-with-ai="emit('fix-with-ai', $event)"
-              @send-selection-to-ai="emit('send-selection-to-ai', $event)"
-              @execute="emit('execute', $event)"
-              @execute-in-new-result-tab="emit('execute-in-new-result-tab', $event)"
-              @cancel="emit('cancel')"
-              @explain="emit('explain')"
+              @update:active-output-view="(_tabId, view) => emit('update:active-output-view', view)"
+              @fix-with-ai="(_tabId, err) => emit('fix-with-ai', err)"
+              @send-selection-to-ai="(_tabId, sql) => emit('send-selection-to-ai', sql)"
+              @execute="(_tabId, opts) => emit('execute', opts)"
+              @execute-in-new-result-tab="(_tabId, opts) => emit('execute-in-new-result-tab', opts)"
+              @cancel="(_tabId) => emit('cancel')"
+              @explain="(_tabId) => emit('explain')"
               @editor-update="(id, val) => emit('editor-update', id, val)"
-              @editor-selection-change="(val) => emit('editor-selection-change', val)"
-              @editor-cursor-change="(pos) => emit('editor-cursor-change', pos)"
-              @preview-changes-available="(val) => emit('preview-changes-available', val)"
+              @editor-selection-change="(_tabId, val) => emit('editor-selection-change', val)"
+              @editor-cursor-change="(_tabId, pos) => emit('editor-cursor-change', pos)"
+              @preview-changes-available="(_tabId, val) => emit('preview-changes-available', val)"
               @editor-viewport-change="(id, vp) => emit('editor-viewport-change', id, vp)"
               @editor-selection-state-change="(id, sel) => emit('editor-selection-state-change', id, sel)"
-              @format-error="emit('format-error')"
-              @save-sql="emit('save-sql')"
-              @reload="(...args) => emit('reload', ...args)"
-              @paginate="(...args) => emit('paginate', ...args)"
-              @sort="(...args) => emit('sort', ...args)"
-              @execute-sql="(sql) => emit('execute-sql', sql)"
-              @click-table="(opts) => emit('click-table', opts)"
-              @view-table-data="(opts) => emit('view-table-data', opts)"
-              @edit-table-structure="(opts) => emit('edit-table-structure', opts)"
-              @view-table-ddl="(opts) => emit('view-table-ddl', opts)"
-              @open-object-source="(opts) => emit('open-object-source', opts)"
-              @open-object-table="(target) => emit('open-object-table', target)"
-              @object-schema-change="(schema) => emit('object-schema-change', schema)"
-              @object-browser-viewport-change="(id, vp) => emit('object-browser-viewport-change', id, vp)"
-              @structure-editor-saved="(changed) => emit('structure-editor-saved', changed)"
-              @structure-editor-close="emit('structure-editor-close')"
+              @format-error="(_tabId) => emit('format-error')"
+              @save-sql="(_tabId) => emit('save-sql')"
+              @reload="(tabId, ...args) => emit('reload', tabId, ...args)"
+              @paginate="(tabId, ...args) => emit('paginate', tabId, ...args)"
+              @sort="(tabId, ...args) => emit('sort', tabId, ...args)"
+              @execute-sql="(tabId, sql) => emit('execute-sql', tabId, sql)"
+              @click-table="(tabId, opts) => emit('click-table', tabId, opts)"
+              @view-table-data="(tabId, opts) => emit('view-table-data', tabId, opts)"
+              @edit-table-structure="(tabId, opts) => emit('edit-table-structure', tabId, opts)"
+              @view-table-ddl="(tabId, opts) => emit('view-table-ddl', tabId, opts)"
+              @open-object-source="(tabId, opts, init) => emit('open-object-source', tabId, opts, init)"
+              @open-object-table="(tabId, target) => emit('open-object-table', tabId, target)"
+              @object-schema-change="(tabId, schema) => emit('object-schema-change', tabId, schema)"
+              @object-browser-viewport-change="(tabId, vp) => emit('object-browser-viewport-change', tabId, vp)"
+              @structure-editor-saved="(tabId, changed) => emit('structure-editor-saved', tabId, changed)"
+              @structure-editor-close="(tabId) => emit('structure-editor-close', tabId)"
               @open-settings="(t) => emit('open-settings', t)"
-              @open-connection-settings="emit('open-connection-settings', $event)"
+              @open-connection-settings="(connId) => emit('open-connection-settings', connId)"
               @toggle-zen-mode="emit('toggle-zen-mode')"
             />
           </KeepAlive>

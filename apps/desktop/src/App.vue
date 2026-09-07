@@ -929,12 +929,6 @@ useScheduledDatabaseBackups({ scheduler: true });
 const appVersion = ref("");
 const isClassicLayout = computed(() => settingsStore.editorSettings.appLayout === "classic");
 const isSqlyogLayout = computed(() => settingsStore.editorSettings.appLayout === "sqlyog");
-const isVerticalTabPlacement = computed(() => settingsStore.editorSettings.tabPlacement === "left" || settingsStore.editorSettings.tabPlacement === "right");
-const tabWorkspaceLayoutClass = computed(() => {
-  if (settingsStore.editorSettings.tabPlacement === "bottom") return "flex-col-reverse";
-  if (settingsStore.editorSettings.tabPlacement === "right") return "flex-row-reverse";
-  return isVerticalTabPlacement.value ? "flex-row" : "flex-col";
-});
 
 // Every pane's vertical strip writes back to this shared width/collapse state.
 function startTabBarResize(event: MouseEvent) {
@@ -975,6 +969,8 @@ watch(
 );
 
 function activateSettingsPage() {
+  settingsPageTabOpen.value = true;
+  activateMainContentSurface("settings");
   showSettingsDialog.value = true;
 }
 
@@ -983,6 +979,7 @@ function activateQuerySurface() {
 }
 
 function closeSettingsPage() {
+  settingsPageTabOpen.value = false;
   showSettingsDialog.value = false;
 }
 
@@ -998,10 +995,13 @@ function openDriverStorePage(target?: "agent" | "jdbc" | "storage" | "runtime" |
   } else {
     driverStoreFocus.value = target ?? null;
   }
+  driverStoreTabOpen.value = true;
+  activateMainContentSurface("driverStore");
   showDriverStoreDialog.value = true;
 }
 
 function closeDriverStorePage() {
+  driverStoreTabOpen.value = false;
   showDriverStoreDialog.value = false;
   driverStoreActiveTab.value = "agent";
   driverStoreFocus.value = null;
@@ -3472,7 +3472,6 @@ onUnmounted(() => {
         :block-dangerous-redis-commands="blockDangerousRedisCommands"
         :database-required-tab-id="databaseRequiredTabId"
         :database-required-signal="databaseRequiredSignal"
-        :is-oracle-manual-transaction="isOracleManualTransaction"
         :active-output-view="activeOutputView"
         :format-sql-request="formatSqlRequest"
         :compress-sql-request="compressSqlRequest"
@@ -3563,46 +3562,53 @@ onUnmounted(() => {
         @editor-viewport-change="(tabId: string, viewport: { scrollTop: number; scrollLeft: number }) => queryStore.updateEditorViewport(tabId, viewport)"
         @editor-selection-state-change="(tabId: string, selection: { anchor: number; head: number }) => queryStore.updateEditorSelection(tabId, selection)"
         @format-error="toast(t('toolbar.formatSqlFailed'))"
-        @reload="(sql, searchText, whereInput, orderBy, limit, offset, intent) => onReloadData(sql, searchText, whereInput, orderBy, limit, offset, intent)"
-        @paginate="onPaginate"
-        @sort="onSort"
-        @execute-sql="onExecuteSql"
-        @click-table="onClickTable"
-        @view-table-data="onViewTableData"
-        @edit-table-structure="onEditTableStructure"
-        @view-table-ddl="onViewTableDdl"
-        @open-object-source="onOpenObjectSource"
+        @reload="(tabId: string, sql: any, searchText: any, whereInput: any, orderBy: any, limit: any, offset: any, intent: any) => onReloadData(tabId, sql, searchText, whereInput, orderBy, limit, offset, intent)"
+        @paginate="(tabId: string, offset: number, limit: number, whereInput?: string, orderBy?: string) => onPaginate(tabId, offset, limit, whereInput, orderBy)"
+        @sort="(tabId: string, column: string, columnIndex: number, direction: 'asc' | 'desc' | null, whereInput?: string, mode?: DataGridSortMode) => onSort(tabId, column, columnIndex, direction, whereInput, mode)"
+        @execute-sql="(tabId: string, sql: string) => onExecuteSql(tabId, sql)"
+        @click-table="(_tabId: string, target: SqlObjectNavigationTarget) => onClickTable(target)"
+        @view-table-data="(_tabId: string, target: SqlObjectNavigationTarget) => onViewTableData(target)"
+        @edit-table-structure="(_tabId: string, target: SqlObjectNavigationTarget) => onEditTableStructure(target)"
+        @view-table-ddl="(_tabId: string, target: SqlObjectNavigationTarget) => onViewTableDdl(target)"
+        @open-object-source="(_tabId: string, target: SqlObjectNavigationTarget, initialEditing: boolean) => onOpenObjectSource(target, initialEditing)"
         @open-object-table="
-          (target: any) =>
-            activeTab &&
+          (tabId: string, target: { tableName: string; schema?: string; tableType?: string; catalog?: string; comment?: string | null }) => {
+            const tab = queryStore.tabs.find((candidate) => candidate.id === tabId) ?? activeTab;
+            if (!tab) return;
             openObjectBrowserTableTarget({
-              connectionId: activeTab.connectionId,
-              database: activeTab.database,
+              connectionId: tab.connectionId,
+              database: tab.database,
               schema: target.schema,
               catalog: target.catalog,
               tableName: target.tableName,
               tableType: target.tableType,
-            })
+              comment: target.comment,
+            });
+          }
         "
-        @object-schema-change="(schema: string) => activeTab && queryStore.updateSchema(activeTab.id, schema)"
+        @object-schema-change="(tabId: string, schema: string | undefined) => queryStore.updateSchema(tabId, schema)"
         @object-browser-viewport-change="(tabId: string, viewport: any) => queryStore.updateObjectBrowserViewport(tabId, viewport)"
         @structure-editor-saved="
-          (commentChanged: boolean) =>
-            activeTab &&
+          (tabId: string, commentChanged: boolean) => {
+            const tab = queryStore.tabs.find((candidate) => candidate.id === tabId);
+            if (!tab) return;
             onStructureEditorSaved(
-              onReloadData,
+              async () => {
+                await onReloadData(tabId);
+              },
               toast,
               {
-                connectionId: activeTab.connectionId,
-                database: activeTab.database,
-                schema: activeTab.schema,
-                catalog: activeTab.catalog,
-                tableName: activeTab.structureTableName || '',
+                connectionId: tab.connectionId,
+                database: tab.database,
+                schema: tab.schema,
+                catalog: tab.catalog,
+                tableName: tab.structureTableName || '',
               },
               commentChanged,
-            )
+            );
+          }
         "
-        @structure-editor-close="activeTab && queryStore.closeTab(activeTab.id)"
+        @structure-editor-close="(tabId: string) => queryStore.closeTab(tabId)"
         @open-connection-settings="openConnectionSettings"
         @open-connection-query="openConnectionQuery"
         @open-saved-sql="openSavedSqlFromWelcome"
