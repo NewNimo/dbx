@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
-import { ChevronsRight, AlertTriangle, Table2, FileCode } from "@lucide/vue";
+import { ChevronsRight, AlertTriangle, Table2, FileCode, Plus } from "@lucide/vue";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import AppToolbar from "@/components/layout/AppToolbar.vue";
 import CustomConnectionTabBar from "@/components/layout/CustomConnectionTabBar.vue";
 import AppSidebar from "@/components/layout/AppSidebar.vue";
-import AppTabBar from "@/components/layout/AppTabBar.vue";
+import EditorGroupTabBar from "@/components/layout/EditorGroupTabBar.vue";
 import EditorToolbar from "@/components/layout/EditorToolbar.vue";
 import ContentArea from "@/components/layout/ContentArea.vue";
 import WelcomeScreen from "@/components/layout/WelcomeScreen.vue";
@@ -230,6 +230,27 @@ const queryStore = useQueryStore();
 const customConnectionTabs = useCustomConnectionTabs();
 
 const isOracleManualTransaction = computed(() => effectiveDatabaseTypeForConnection(props.activeConnection) === "oracle" && (props.activeTab?.autoCommit ?? true) === false);
+
+const currentConnectionTabs = computed(() => {
+  const connId = customConnectionTabs.activeConnectionId.value;
+  if (!connId) return [];
+  return queryStore.tabs.filter((t) => t.connectionId === connId);
+});
+
+const currentGroupId = computed(() => {
+  return queryStore.focusedGroupId || "main";
+});
+
+function handleActivateTab(tabId: string) {
+  if (!queryStore.activateTab(tabId)) {
+    queryStore.activeTabId = tabId;
+  }
+  const currentConnId = customConnectionTabs.activeConnectionId.value;
+  if (currentConnId) {
+    customConnectionTabs.setLastActiveTab(currentConnId, tabId);
+  }
+  emit("activate-tab");
+}
 
 // Keep connectionStore.activeConnectionId in sync with custom active connection
 watch(
@@ -525,37 +546,29 @@ function handleOpenConnectionFromWelcome(connId: string) {
 
       <!-- Center: Main Workspace / Tabs / Welcome -->
       <div v-show="!isAiPanelMaximized || isZenMode" class="flex-1 min-w-0 flex flex-col overflow-hidden bg-background">
-        <!-- Level 2: Query Tabs Bar -->
-        <AppTabBar
-          v-if="customConnectionTabs.activeConnectionId.value"
-          :ref="appTabBarRef"
-          :connection-id="customConnectionTabs.activeConnectionId.value"
-          :driver-store-open="false"
-          :driver-store-active="false"
-          :settings-page-open="false"
-          :settings-page-active="false"
-          :agent-driver-update-count="agentDriverUpdateCount"
-          :detached-drop-target="detachedDropTargetTabId !== null"
-          :can-detach-tabs="isDesktop"
-          :tab-bar-width="tabBarWidth"
-          :tab-bar-collapsed="tabBarCollapsed"
-          @toggle-zen-mode="emit('toggle-zen-mode')"
-          @activate-driver-store="emit('open-driver-store')"
-          @activate-settings-page="emit('open-settings')"
-          @locate-tab="emit('locate-tab', $event)"
-          @activate-tab="emit('activate-tab')"
-          @close-driver-store="emit('close-driver-store')"
-          @close-settings-page="emit('close-settings-page')"
-          @save-tab="emit('save-tab', $event)"
-          @discard-tab-close="emit('discard-tab-close')"
-          @save-all-tab-close="emit('save-all-tab-close')"
-          @discard-all-tab-close="emit('discard-all-tab-close')"
-          @cancel-tab-close="emit('cancel-tab-close')"
-          @detach-tab="emit('detach-tab', $event)"
-          @start-resize="emit('start-tab-bar-resize', $event)"
-          @toggle-collapse="emit('toggle-tab-bar-collapse')"
-          @new-query="emit('new-query')"
-        />
+        <!-- Level 2: Query & Table Tabs Bar -->
+        <div v-if="customConnectionTabs.activeConnectionId.value && currentConnectionTabs.length > 0" class="flex items-center w-full min-w-0 border-b border-border/70 bg-muted/40">
+          <div class="flex-1 min-w-0">
+            <EditorGroupTabBar
+              :group-id="currentGroupId"
+              :tabs="currentConnectionTabs"
+              :active-tab-id="props.activeTab?.id ?? null"
+              :can-detach-tabs="isDesktop"
+              :detached-drop-target="detachedDropTargetTabId !== null"
+              :tab-bar-width="tabBarWidth"
+              :tab-bar-collapsed="tabBarCollapsed"
+              @activate-tab="handleActivateTab"
+              @locate-tab="emit('locate-tab', $event)"
+              @toggle-zen-mode="emit('toggle-zen-mode')"
+              @start-resize="emit('start-tab-bar-resize', $event)"
+              @toggle-collapse="emit('toggle-tab-bar-collapse')"
+              @detach-tab="emit('detach-tab', $event)"
+            />
+          </div>
+          <Button variant="ghost" size="icon" class="h-7 w-7 shrink-0 mr-1.5 text-muted-foreground hover:text-foreground" :title="t('toolbar.newQuery')" @click="emit('new-query')">
+            <Plus class="h-4 w-4" />
+          </Button>
+        </div>
 
         <!-- Query Workspace (when activeTab is open) -->
         <div v-if="activeTab" class="flex flex-col flex-1 min-h-0">
