@@ -552,6 +552,28 @@ function handleCancelClose() {
   queryStore.cancelClosePendingTab();
   emit("cancel-tab-close");
 }
+
+function closeOtherActiveTabs() {
+  const activeTabId = queryStore.activeTabId;
+  if (!activeTabId) return;
+  const currentConnId = customConnectionTabs.activeConnectionId.value;
+  if (currentConnId) {
+    const tabsToClose = queryStore.tabs.filter((t) => t.connectionId === currentConnId && t.id !== activeTabId).map((t) => t.id);
+    if (tabsToClose.length > 0) {
+      queryStore.closeTabsByIds(tabsToClose, activeTabId);
+    }
+  } else {
+    queryStore.closeOtherTabs(activeTabId);
+  }
+}
+
+onMounted(() => {
+  if (props.appTabBarRef && typeof props.appTabBarRef === "object" && "value" in props.appTabBarRef) {
+    props.appTabBarRef.value = { closeOtherActiveTabs };
+  }
+});
+
+defineExpose({ closeOtherActiveTabs });
 </script>
 
 <template>
