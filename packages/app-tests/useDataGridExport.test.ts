@@ -528,6 +528,17 @@ test("SQL export forwards the selected single-row mode to query-result streaming
   assert.equal(apiMock.startQueryResultExport.mock.calls[0][0].insertMode, "single");
 });
 
+test("SQL export forwards selectedColumns to query-result streaming", async () => {
+  runtimeMock.isTauri = true;
+  dialogMock.save.mockResolvedValue("/tmp/query-result.sql");
+  sqlInsertModeMock.showSqlInsertModeDialog.mockResolvedValueOnce({ insertMode: "batch", selectedColumns: ["id", "name"] });
+  const { composable, queryResultExportRequest } = buildExportHarness();
+
+  await composable.exportSql();
+
+  assert.deepEqual(queryResultExportRequest.mock.calls[0][0].columns, ["id", "name"]);
+});
+
 test("table data SQL export forwards the selected mode to the table backend", async () => {
   runtimeMock.isTauri = true;
   dialogMock.save.mockResolvedValue("/tmp/users.sql");

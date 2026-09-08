@@ -120,6 +120,9 @@ pub struct QueryResultExportRequest {
     pub auto_filter: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub identifier_quote: Option<String>,
+    // [CUSTOM_FIELD_FILTER] REVERT: Remove if upstream standardizes query-result column filtering
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub columns: Option<Vec<String>>,
 }
 
 pub struct StagedExportTarget {
@@ -322,6 +325,8 @@ struct SqlInsertWriter {
     schema: Option<String>,
     table_name: String,
     identifier_quote: Option<String>,
+    // [CUSTOM_FIELD_FILTER] REVERT: Remove if upstream adopts alternative column filtering
+    selected_indices: Option<Vec<usize>>,
 }
 
 impl SqlInsertWriter {
@@ -351,6 +356,7 @@ impl SqlInsertWriter {
             schema: request.schema.clone(),
             table_name,
             identifier_quote: request.identifier_quote.clone(),
+            selected_indices: None,
         })
     }
 
@@ -364,14 +370,52 @@ impl SqlInsertWriter {
         spatial_columns: &[SpatialColumn],
         request: &QueryResultExportRequest,
     ) {
-        self.column_types = sql_insert_column_types(request, result_column_types);
-        self.spatial_columns = spatial_columns.to_vec();
-        self.columns = columns;
+        let all_column_types = sql_insert_column_types(request, result_column_types);
+        if let Some(ref requested_cols) = request.columns {
+            // [CUSTOM_FIELD_FILTER] Filter columns and types to only user-selected columns
+            let col_map: std::collections::HashMap<&str, usize> =
+                columns.iter().enumerate().map(|(idx, name)| (name.as_str(), idx)).collect();
+            let mut indices = Vec::new();
+            let mut filtered_columns = Vec::new();
+            let mut filtered_types = Vec::new();
+            for col in requested_cols {
+                if let Some(&idx) = col_map.get(col.as_str()) {
+                    indices.push(idx);
+                    filtered_columns.push(col.clone());
+                    filtered_types.push(all_column_types.get(idx).cloned().flatten());
+                }
+            }
+            let index_map: std::collections::HashMap<usize, usize> =
+                indices.iter().enumerate().map(|(new_idx, &old_idx)| (old_idx, new_idx)).collect();
+            self.spatial_columns = spatial_columns
+                .iter()
+                .filter_map(|sc| {
+                    index_map
+                        .get(&sc.column_index)
+                        .map(|&new_index| SpatialColumn { column_index: new_index, srid: sc.srid })
+                })
+                .collect();
+            self.columns = filtered_columns;
+            self.column_types = filtered_types;
+            self.selected_indices = Some(indices);
+        } else {
+            self.column_types = all_column_types;
+            self.spatial_columns = spatial_columns.to_vec();
+            self.columns = columns;
+            self.selected_indices = None;
+        }
     }
 
     fn write_row(&mut self, row: Vec<Value>, spatial_values: Option<Vec<Option<u32>>>) -> Result<(), String> {
-        self.pending_rows.push(row);
-        self.pending_spatial_values.push(spatial_values.unwrap_or_default());
+        let (projected_row, projected_spatial) = if let Some(ref indices) = self.selected_indices {
+            let pr = indices.iter().map(|&idx| row.get(idx).cloned().unwrap_or(Value::Null)).collect();
+            let ps = spatial_values.map(|sv| indices.iter().map(|&idx| sv.get(idx).copied().flatten()).collect());
+            (pr, ps)
+        } else {
+            (row, spatial_values)
+        };
+        self.pending_rows.push(projected_row);
+        self.pending_spatial_values.push(projected_spatial.unwrap_or_default());
         if self.insert_mode.flush_each_row() || self.pending_rows.len() >= SQL_INSERT_BATCH_SIZE {
             self.flush_batch()?;
         }
@@ -1989,7 +2033,34 @@ mod tests {
             column_comments: None,
             auto_filter: None,
             identifier_quote: None,
+            columns: None,
         }
+    }
+
+    #[test]
+    fn sql_insert_writer_filters_columns_when_specified() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let destination = dir.path().join("users_filtered.sql");
+        let mut req = request("sql", None, None);
+        req.database_type = DatabaseType::Mysql;
+        req.file_path = destination.to_string_lossy().into_owned();
+        req.export_table_name = Some("users".to_string());
+        req.columns = Some(vec!["name".to_string()]);
+
+        let mut writer = SqlInsertWriter::create(&req).expect("create SQL writer");
+        writer.set_columns(
+            vec!["id".to_string(), "name".to_string()],
+            &["int".to_string(), "text".to_string()],
+            &[],
+            &req,
+        );
+        writer.write_row(vec![serde_json::json!(1), serde_json::json!("Ada")], None).expect("write first row");
+        writer.write_row(vec![serde_json::json!(2), serde_json::json!("Lin")], None).expect("write second row");
+        writer.finish().expect("finish SQL writer");
+
+        let output = std::fs::read_to_string(destination).expect("read SQL output");
+        assert!(output.contains("INSERT INTO `users` (`name`) VALUES ('Ada'), ('Lin');"));
+        assert!(!output.contains("`id`"));
     }
 
     fn rendered_sql_insert_output(mode: SqlInsertMode) -> String {

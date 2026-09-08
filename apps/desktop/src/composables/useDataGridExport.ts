@@ -119,6 +119,8 @@ export interface UseDataGridExportOptions {
     exportTableName?: string;
     exportColumnTypes?: Array<string | null | undefined>;
     insertMode?: SqlInsertMode;
+    // [CUSTOM_FIELD_FILTER] REVERT: Remove columns if upstream changes queryResultExportRequest options
+    columns?: string[];
   }) => Promise<QueryResultExportRequest | undefined>;
   /**
    * True when the in-memory result already holds the complete result set —
@@ -1250,7 +1252,7 @@ export function useDataGridExport(options: UseDataGridExportOptions) {
     return true;
   }
 
-  async function exportQueryResultViaBackend(format: "csv" | "xlsx" | "txt" | "sql", rowIds?: number[], includeSqlSheet = false, headerMode: XlsxHeaderMode = "name", autoFilter = true, insertMode?: SqlInsertMode): Promise<boolean> {
+  async function exportQueryResultViaBackend(format: "csv" | "xlsx" | "txt" | "sql", rowIds?: number[], includeSqlSheet = false, headerMode: XlsxHeaderMode = "name", autoFilter = true, insertMode?: SqlInsertMode, selectedColumns?: string[]): Promise<boolean> {
     if (rowIds !== undefined || context.value !== "results" || !queryResultExportRequest) {
       return false;
     }
@@ -1282,6 +1284,8 @@ export function useDataGridExport(options: UseDataGridExportOptions) {
       exportTableName: format === "sql" ? tableMeta.value?.tableName : undefined,
       exportColumnTypes: format === "sql" ? allColumnTypes.value?.map((type) => type ?? null) : undefined,
       ...(format === "sql" && insertMode ? { insertMode } : {}),
+      // [CUSTOM_FIELD_FILTER] REVERT: Remove columns if upstream changes query-result export columns
+      columns: selectedColumns,
     });
     const columnComments = format === "xlsx" ? buildXlsxHeaderOverrides(allColumns.value, allXlsxColumnComments.value, headerMode) : undefined;
     const request = baseRequest
@@ -1364,9 +1368,10 @@ export function useDataGridExport(options: UseDataGridExportOptions) {
     return true;
   }
 
-  async function exportQueryResultSqlViaBackend(rowIds: number[] | undefined, insertMode: SqlInsertMode): Promise<boolean> {
+  // [CUSTOM_FIELD_FILTER] REVERT: Remove selectedColumns if upstream changes query result export signature
+  async function exportQueryResultSqlViaBackend(rowIds: number[] | undefined, insertMode: SqlInsertMode, selectedColumns?: string[]): Promise<boolean> {
     if (!isTauriRuntime()) return false;
-    return exportQueryResultViaBackend("sql", rowIds, false, "name", true, insertMode);
+    return exportQueryResultViaBackend("sql", rowIds, false, "name", true, insertMode, selectedColumns);
   }
 
   async function exportSql(rowIds?: number[]) {
@@ -1415,7 +1420,8 @@ export function useDataGridExport(options: UseDataGridExportOptions) {
 
         // Step 2: query-result context — NEW backend streaming with background task
         logExportStage("query-backend-export-start");
-        const handledQueryByBackend = await exportQueryResultSqlViaBackend(rowIds, insertMode);
+        // [CUSTOM_FIELD_FILTER] REVERT: Remove selectedColumns argument if upstream signature changes
+        const handledQueryByBackend = await exportQueryResultSqlViaBackend(rowIds, insertMode, selectedColumns);
         logExportStage("query-backend-export-finished", { handledByBackend: handledQueryByBackend });
         if (handledQueryByBackend) {
           logExportStage("done", { path: "query-backend" });

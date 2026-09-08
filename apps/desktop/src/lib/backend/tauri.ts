@@ -4968,6 +4968,8 @@ export interface QueryResultExportRequest {
   columnComments?: Array<string | null> | null;
   autoFilter?: boolean;
   identifierQuote?: string;
+  // [CUSTOM_FIELD_FILTER] REVERT: Remove if upstream standardizes query-result column filtering
+  columns?: string[];
 }
 
 export async function startTableExport(request: TableExportRequest, onProgress: (progress: TableExportProgress) => void): Promise<TableExportProgress> {

@@ -36,7 +36,8 @@ pub async fn export_database_sql(
 
     // Exports interleave async fetches with synchronous row formatting and
     // buffered disk writes; run them off the async workers (see spawn_export_task).
-    dbx_core::export_runtime::spawn_export_task(async move {
+    // [CUSTOM_STACK_FIX] REVERT: Change back to `dbx_core::export_runtime::spawn_export_task` when upstream increases default thread stack.
+    dbx_core::export_runtime::spawn_export_task_with_enlarged_stack(async move {
         let result = dbx_core::database_export::export_database_sql_core(&state, &request, |progress| {
             emit_progress(&app, progress)
         })

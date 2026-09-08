@@ -271,7 +271,8 @@ pub async fn start_query_result_export(
 
     // Exports interleave async fetches with synchronous row formatting and
     // buffered disk writes; run them off the async workers (see spawn_export_task).
-    dbx_core::export_runtime::spawn_export_task(async move {
+    // [CUSTOM_STACK_FIX] REVERT: Change back to `dbx_core::export_runtime::spawn_export_task` when upstream increases default thread stack.
+    dbx_core::export_runtime::spawn_export_task_with_enlarged_stack(async move {
         let execution_id = request.execution_id.clone().filter(|id| !id.trim().is_empty());
         let registered_query = execution_id.as_ref().map(|id| {
             state.running_queries.register_task(

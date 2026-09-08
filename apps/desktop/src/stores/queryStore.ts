@@ -152,6 +152,8 @@ interface BuildQueryResultExportRequestOptions {
   exportTableName?: string;
   exportColumnTypes?: Array<string | null | undefined>;
   insertMode?: SqlInsertMode;
+  // [CUSTOM_FIELD_FILTER] REVERT: Remove columns if upstream changes query-result export
+  columns?: string[];
 }
 
 interface OpenSavedSqlOptions {
@@ -7663,6 +7665,8 @@ export const useQueryStore = defineStore("query", () => {
       exportColumnTypes: options.exportColumnTypes,
       numericColumnRightAlign: settings.numericColumnRightAlign,
       identifierQuote: connStore.connectionIdentifierQuote(location.connectionId),
+      // [CUSTOM_FIELD_FILTER] REVERT: Remove columns if upstream query-result export changes
+      columns: options.columns,
     };
   }
 

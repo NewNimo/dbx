@@ -27,8 +27,7 @@
 | **3** | **新建查询上下文智能跟随** | • 点击“新建查询”时，智能继承当前**正处于激活状态的标签页**所在的连接与数据库信息，避免新建到其他连接<br>• 在标签栏最右侧添加跟随最后一个标签的快捷 `+` 新建按钮 | `newQueryContext.ts`<br>`CustomSqlyogShell.vue`<br>`App.vue` |
 | **4** | **对象树双击智能光标插入** | • 当当前有激活的 SQL 查询编辑器时，双击左侧对象树中的表名，**自动将表名插入到 SQL 编辑器光标所在位置**<br>• 当处于非查询页面或无激活编辑器时，保持官方默认行为（直接打开表数据网格） | `AppSidebar.vue`<br>`queryEditorTextEdits.ts`<br>`ConnectionTree.vue` |
 | **5** | **连接关闭未保存拦截保护** | • 关闭单个连接标签页时，自动扫描属于该连接的所有查询页及未提交的表数据编辑<br>• 若存在未保存内容，弹出确认弹窗提示保存或放弃，防止误关丢失修改 | `useCustomConnectionTabs.ts`<br>`useDataGridEditor.ts`<br>`CustomSqlyogShell.vue` |
-| **6** | **macOS 免签名 CI 构建工作流** | • 新增独立的 GitHub Actions 工作流，支持通过网页端手动点击（`workflow_dispatch`）或推送 `macos-*` Tag 触发<br>• 自动在 GitHub `macos-latest` (ARM64) 虚拟机上编译生成适配 Apple Silicon (M1/M2/M3/M4) 的免签名 `.dmg` 安装包并上传为 Artifacts | `.github/workflows/macos-build.yml` |
-| **7** | **UI 细节与多语言修正** | • 修复标签页旁边 `+` 号下拉菜单中“新建连接”英文文案为中文 | `zh-CN.ts`<br>`en.ts` |
+| **6** | **SQL INSERT 导出字段筛选与后端防崩** | • 在 SQL INSERT 导出模式弹窗中新增字段选择器，默认全选，支持按需勾选导出部分字段<br>• 在数据表与查询结果集导出中全链路支持字段投影过滤<br>• 后端为导出执行器新增独立 8MB 线程栈包装函数，彻底解决 Windows 平台 Debug 构建下巨型 Future 栈溢出崩溃（`STATUS_STACK_OVERFLOW`）<br>• 保持原始业务逻辑不动，调用入口统一附带 `[CUSTOM_*] REVERT` 注释，易于后续上游升级一键还原 | `SqlInsertModeDialog.vue`<br>`useDataGridExport.ts`<br>`export_runtime.rs`<br>`query_result_export.rs`<br>`commands/*_export.rs` |
 
 ---
 
@@ -38,22 +37,33 @@
 
 ```
 apps/desktop/src/
-├── components/layout/
-│   ├── CustomSqlyogShell.vue         # [新增] SQLyog 风格应用主外壳（隔离官方布局）
-│   ├── CustomConnectionTabBar.vue    # [新增] 顶层连接标签栏组件
-│   ├── AppSidebar.vue                # [微调] 增加双击表名插入光标事件转发
-│   └── AppTabBar.vue                 # [微调] 保持兼容与特殊页面工作区
+├── components/
+│   ├── export/SqlInsertModeDialog.vue # [微调] 新增 SQL 导出字段多选器
+│   ├── layout/
+│   │   ├── CustomSqlyogShell.vue      # [新增] SQLyog 风格应用主外壳（隔离官方布局）
+│   │   ├── CustomConnectionTabBar.vue # [新增] 顶层连接标签栏组件
+│   │   ├── AppSidebar.vue             # [微调] 增加双击表名插入光标事件转发
+│   │   └── AppTabBar.vue              # [微调] 保持兼容与特殊页面工作区
+│   └── objects/ObjectBrowser.vue      # [微调] 表数据 SQL 导出传递字段元数据
 ├── composables/
-│   └── useCustomConnectionTabs.ts    # [新增] 连接标签状态与生命周期管理
+│   ├── useCustomConnectionTabs.ts     # [新增] 连接标签状态与生命周期管理
+│   └── useDataGridExport.ts           # [微调] 导出透传选中字段与类型
 ├── lib/
-│   ├── editor/queryEditorTextEdits.ts# [新增] SQL 编辑器光标处文本插入工具
-│   └── sql/newQueryContext.ts        # [微调] 新建查询目标连接与数据库上下文解析
+│   ├── editor/queryEditorTextEdits.ts # [新增] SQL 编辑器光标处文本插入工具
+│   ├── export/sqlInsertMode.ts        # [微调] 导出模式弹窗增加 columns 选项返回
+│   └── sql/newQueryContext.ts         # [微调] 新建查询目标连接与数据库上下文解析
 ├── stores/
-│   └── settingsStore.ts              # [微调] 增加 appLayout: "sqlyog" 布局枚举配置
-├── App.vue                           # [微调] 引入 CustomSqlyogShell 分支渲染与弹窗绑定
-└── styles/globals.css                # [微调] 追加 SQLyog 模式专属样式类
-.github/workflows/
-└── macos-build.yml                   # [新增] macOS Apple Silicon (ARM64) 打包工作流
+│   ├── queryStore.ts                  # [微调] 流式查询结果集导出透传 columns
+│   └── settingsStore.ts               # [微调] 增加 appLayout: "sqlyog" 布局枚举配置
+├── App.vue                            # [微调] 引入 CustomSqlyogShell 分支渲染与弹窗绑定
+└── styles/globals.css                 # [微调] 追加 SQLyog 模式专属样式类
+crates/dbx-core/src/
+├── export_runtime.rs                  # [新增] spawn_export_task_with_enlarged_stack (8MB 栈防崩)
+└── query_result_export.rs             # [微调] QueryResultExportRequest 增加 columns 投影过滤
+src-tauri/src/commands/
+├── query_result_export.rs             # [入口] 替换为 8MB 栈导出包装
+├── table_export.rs                    # [入口] 替换为 8MB 栈导出包装
+└── database_export.rs                 # [入口] 替换为 8MB 栈导出包装
 ```
 
 ---

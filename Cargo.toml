@@ -41,6 +41,8 @@ tiberius = { path = "vendor/tiberius" }
 [profile.release]
 panic = "abort"
 strip = true
-lto = true
-codegen-units = 1
+# [CUSTOM_BUILD_SPEEDUP] ThinLTO enables multi-core parallel optimization and fast linking across all platforms
+lto = "thin"
 opt-level = "s"
+
+
