@@ -518,6 +518,8 @@ interface DataGridProps {
     exportTableName?: string;
     exportColumnTypes?: Array<string | null | undefined>;
     insertMode?: SqlInsertMode;
+    // [CUSTOM_FIELD_FILTER] REVERT: Remove columns if upstream changes queryResultExportRequest prop
+    columns?: string[];
   }) => Promise<api.QueryResultExportRequest | undefined>;
   allExportResults?: Array<{
     sheetName: string;

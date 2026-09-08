@@ -77,19 +77,20 @@
   - `apps/desktop/src/composables/useDataGridEditor.ts` (`hasDataGridPendingChangesForTab`)
   - `apps/desktop/src/components/layout/CustomSqlyogShell.vue`
 
-### 🌟 6. macOS Apple Silicon 免签名 CI 打包工作流
+### 🌟 6. SQL INSERT 导出字段筛选与后端防崩保护
 - **功能描述**：
-  - 新增专用的 GitHub Actions 独立工作流，支持在网页端通过 `workflow_dispatch` 手动点击或推送 `macos-*` Tag 触发。
-  - 在 GitHub `macos-latest` (ARM64) 虚拟机上自动编译生成适配 Apple Silicon (M1/M2/M3/M4) 芯片的免签名 `.dmg` 安装包并上传为 Artifacts（保留 30 天）。
+  - 在 SQL INSERT 导出模式弹窗中新增字段多选器，默认全选，支持按需勾选导出部分字段。
+  - 在数据表与查询结果集导出中全链路支持字段投影过滤。
+  - 后端为长时间运行的导出任务提供独立 8MB 线程栈包装函数，彻底解决 Windows 平台 Debug 构建下巨型 Future 栈溢出崩溃（`STATUS_STACK_OVERFLOW`）。
+  - 核心逻辑保持不动，调用入口统一附带 `[CUSTOM_*] REVERT` 注释，易于后续上游升级平滑还原。
 - **涉及核心文件**：
-  - `.github/workflows/macos-build.yml`
-
-### 🌟 7. UI 细节与多语言汉化修正
-- **功能描述**：
-  - 修复标签页旁边 `+` 号下拉菜单中“新建连接”英文文案（New Connection）为中文。
-- **涉及核心文件**：
-  - `apps/desktop/src/i18n/locales/zh-CN.ts`
-  - `apps/desktop/src/i18n/locales/en.ts`
+  - `apps/desktop/src/components/export/SqlInsertModeDialog.vue`
+  - `apps/desktop/src/composables/useDataGridExport.ts`
+  - `crates/dbx-core/src/export_runtime.rs`
+  - `crates/dbx-core/src/query_result_export.rs`
+  - `src-tauri/src/commands/query_result_export.rs`
+  - `src-tauri/src/commands/table_export.rs`
+  - `src-tauri/src/commands/database_export.rs`
 
 ---
 
@@ -134,9 +135,15 @@
 | `apps/desktop/src/components/layout/AppSidebar.vue` | 修改 | 侧边栏事件中转与双击表名插入光标 | 确保保留 `@double-click-table` 监听 |
 | `apps/desktop/src/components/sidebar/ConnectionTree.vue` | 修改 | 连接树组件双击事件与连接过滤 | 确保保留 `@double-click-table` 向上 emit |
 | `apps/desktop/src/components/editor/EditorSettingsDialog.vue` | 修改 | 设置弹窗化封装 | 确保保留弹窗化展示 |
+| `apps/desktop/src/components/export/SqlInsertModeDialog.vue` | 修改 | 新增 SQL 导出字段多选器 | 确保保留字段选择器与 canConfirm 防护 |
+| `apps/desktop/src/composables/useDataGridExport.ts` | 修改 | 导出透传选中字段与类型 | 确保保留 selectedColumns 透传 |
+| `crates/dbx-core/src/export_runtime.rs` | 修改 | 新增 8MB 栈导出包装函数 `spawn_export_task_with_enlarged_stack` | 彻底杜绝 Windows 栈溢出崩溃 |
+| `crates/dbx-core/src/query_result_export.rs` | 修改 | QueryResultExportRequest 增加 columns 投影过滤 | 确保保留字段投影过滤逻辑 |
+| `src-tauri/src/commands/query_result_export.rs` | 修改 | 替换为 8MB 栈导出包装 | 附带 `[CUSTOM_STACK_FIX] REVERT` 注释 |
+| `src-tauri/src/commands/table_export.rs` | 修改 | 替换为 8MB 栈导出包装 | 附带 `[CUSTOM_STACK_FIX] REVERT` 注释 |
+| `src-tauri/src/commands/database_export.rs` | 修改 | 替换为 8MB 栈导出包装 | 附带 `[CUSTOM_STACK_FIX] REVERT` 注释 |
 | `apps/desktop/src/stores/settingsStore.ts` | 修改 | 增加 `appLayout: "sqlyog"` 枚举值 | 仅改动布局配置字段 |
 | `apps/desktop/src/styles/globals.css` | 修改 | 追加 SQLyog 模式专属样式 | 样式一律在文件末尾追加，不篡改官方已有类 |
-| `.github/workflows/macos-build.yml` | 新增 | macOS Apple Silicon 免签名 Actions 工作流 | 保持独立，不影响官方 release.yml |
 
 ---
 
@@ -177,10 +184,10 @@ git push origin custom --force-with-lease
 
 ## 6. 每次修改自检清单（AI Agent Check-off）
 
-- [ ] **是否遵守零后端修改原则？**（`src-tauri/` 和 `crates/` 完全未动）
+- [ ] **是否遵守最小改动原则？**（改动优先采用独立包装函数/隔离组件，调用入口带清晰 REVERT 注释）
 - [ ] **是否复用了官方通用组件？**（没有篡改 `DataGrid`、`QueryEditor` 等内部实现）
-- [ ] **是否采用了 Wrapper 外壳隔离？**（修改全部集中在 `Custom*.vue` 或 `App.vue` 条件分支）
+- [ ] **是否采用了 Wrapper 外壳隔离？**（布局修改集中在 `Custom*.vue` 或 `App.vue` 条件分支）
 - [ ] **是否检查了官方组件更替与职责迁移？**（核对自定义外壳所引用的官方组件是否在上游被废弃、拆分或掏空，确保未保存确认弹窗、右键菜单、快捷键等挂载点完整）
-- [ ] **7 项核心自定义功能是否全部正常保留并逐一核对？**（双击表名插入光标、未保存关闭拦截、多连接标签切换、设置弹窗等）
+- [ ] **6 项核心自定义功能是否全部正常保留并逐一核对？**（多连接标签切换、设置弹窗、新建查询上下文、双击表名插入、关闭未保存拦截、SQL 导出字段筛选与防崩）
 - [ ] **`pnpm typecheck` 是否 0 报错通过？**
 - [ ] **`pnpm test` 是否全部单元测试通过？**

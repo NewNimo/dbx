@@ -1,5 +1,14 @@
 pnpm exec lint-staged
 
+# Ensure cargo is in PATH (e.g. when committed via SourceTree / GUI clients on Windows)
+if ! command -v cargo >/dev/null 2>&1; then
+  if [ -d "$HOME/.cargo/bin" ]; then
+    export PATH="$HOME/.cargo/bin:$PATH"
+  elif [ -d "/c/Users/$USER/.cargo/bin" ]; then
+    export PATH="/c/Users/$USER/.cargo/bin:$PATH"
+  fi
+fi
+
 # Only format and re-add Rust files that are already staged
 TOPLEVEL=$(git rev-parse --show-toplevel)
 
@@ -7,11 +16,15 @@ format_staged_rust() {
   dir="$1"
   staged=$(git diff --staged --name-only --diff-filter=ACM -- "$dir" | grep '\.rs$' || true)
   if [ -n "$staged" ]; then
-    echo "Formatting staged Rust files in $dir"
-    cargo fmt --manifest-path "$TOPLEVEL/$dir/Cargo.toml"
-    echo "$staged" | while IFS= read -r f; do
-      git add "$TOPLEVEL/$f" 2>/dev/null || true
-    done
+    if command -v cargo >/dev/null 2>&1; then
+      echo "Formatting staged Rust files in $dir"
+      cargo fmt --manifest-path "$TOPLEVEL/$dir/Cargo.toml"
+      echo "$staged" | while IFS= read -r f; do
+        git add "$TOPLEVEL/$f" 2>/dev/null || true
+      done
+    else
+      echo "Warning: cargo not found in PATH, skipping cargo fmt for $dir"
+    fi
   fi
 }
 

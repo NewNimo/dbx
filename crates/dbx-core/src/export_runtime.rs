@@ -18,6 +18,27 @@ pub fn spawn_export_task(task: impl Future<Output = ()> + Send + 'static) {
     tokio::task::spawn_blocking(move || handle.block_on(task));
 }
 
+/// [CUSTOM WORKAROUND] Spawns an export task on a dedicated thread with an enlarged
+/// 8MB stack to prevent `STATUS_STACK_OVERFLOW` (0xc00000fd) on Windows.
+///
+/// Large asynchronous export workflows (`export_query_result_core`, `export_table_data_core`)
+/// construct mega-futures covering 15+ database drivers. In debug builds on Windows,
+/// un-inlined async state machines exceed Tokio's default 1-2MB blocking thread stack.
+///
+/// REVERT: Change callers back to `spawn_export_task` once upstream increases default export stack.
+pub fn spawn_export_task_with_enlarged_stack(task: impl Future<Output = ()> + Send + 'static) {
+    let handle = tokio::runtime::Handle::current();
+    let task = Box::pin(task);
+    const EXPORT_THREAD_STACK_SIZE: usize = 8 * 1024 * 1024;
+    std::thread::Builder::new()
+        .name("dbx-export".to_string())
+        .stack_size(EXPORT_THREAD_STACK_SIZE)
+        .spawn(move || {
+            handle.block_on(task);
+        })
+        .expect("spawn export thread with enlarged 8MB stack");
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -85,5 +106,20 @@ mod tests {
             elapsed < SLICE - Duration::from_millis(100),
             "async tasks were starved for {elapsed:?} while the export wrote to disk"
         );
+    }
+
+    #[tokio::test]
+    async fn enlarged_stack_export_task_runs_to_completion() {
+        let (tx, rx) = tokio::sync::oneshot::channel::<u64>();
+        super::spawn_export_task_with_enlarged_stack(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            let nested = tokio::task::spawn_blocking(|| 100u64 + 23).await.unwrap_or(0);
+            tx.send(nested).expect("receiver dropped");
+        });
+        let value = tokio::time::timeout(Duration::from_secs(10), rx)
+            .await
+            .expect("enlarged stack export task did not finish")
+            .expect("export task dropped its sender");
+        assert_eq!(value, 123);
     }
 }
