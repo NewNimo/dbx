@@ -30,8 +30,8 @@ describe("ObjectBrowser XLSX export", () => {
     const exportData = functionBody("exportData");
     const exportTableData = functionBody("exportTableData");
 
-    expect(exportData).toContain("await showSqlInsertModeDialog({ allowSplit: true })");
-    expect(exportData.indexOf("await showSqlInsertModeDialog({ allowSplit: true })")).toBeLessThan(exportData.indexOf("await exportTableData("));
+    expect(exportData).toContain("await showSqlInsertModeDialog({ allowSplit: true, columns: columnInfos?.map((c) => c.name) })");
+    expect(exportData.indexOf("await showSqlInsertModeDialog({ allowSplit: true, columns: columnInfos?.map((c) => c.name) })")).toBeLessThan(exportData.indexOf("await exportTableData("));
     expect(exportTableData).toContain('...(format === "sql" ? { insertMode, splitMaxMb } : {})');
   });
 

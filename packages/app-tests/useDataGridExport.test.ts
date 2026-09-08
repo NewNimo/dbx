@@ -265,7 +265,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   runtimeMock.isTauri = false;
   dialogMock.save.mockResolvedValue(null);
-  sqlInsertModeMock.showSqlInsertModeDialog.mockResolvedValue("batch");
+  sqlInsertModeMock.showSqlInsertModeDialog.mockResolvedValue({ insertMode: "batch", selectedColumns: undefined });
   clipboardMock.copyToClipboard.mockResolvedValue(undefined);
   apiMock.startQueryResultExport.mockImplementation(async (_request, onProgress) => {
     onProgress({ exportId: _request.exportId, tableName: "", rowsExported: 2, totalRows: 2, status: "Done" });
@@ -519,7 +519,7 @@ test("SQL export uses batch mode by default for query-result streaming", async (
 test("SQL export forwards the selected single-row mode to query-result streaming", async () => {
   runtimeMock.isTauri = true;
   dialogMock.save.mockResolvedValue("/tmp/query-result.sql");
-  sqlInsertModeMock.showSqlInsertModeDialog.mockResolvedValueOnce("single");
+  sqlInsertModeMock.showSqlInsertModeDialog.mockResolvedValueOnce({ insertMode: "single", selectedColumns: undefined });
   const { composable, queryResultExportRequest } = buildExportHarness();
 
   await composable.exportSql();
@@ -531,7 +531,7 @@ test("SQL export forwards the selected single-row mode to query-result streaming
 test("table data SQL export forwards the selected mode to the table backend", async () => {
   runtimeMock.isTauri = true;
   dialogMock.save.mockResolvedValue("/tmp/users.sql");
-  sqlInsertModeMock.showSqlInsertModeDialog.mockResolvedValueOnce("single");
+  sqlInsertModeMock.showSqlInsertModeDialog.mockResolvedValueOnce({ insertMode: "single", selectedColumns: undefined });
   const { composable } = buildTableDataExportHarness();
 
   await composable.exportSql();
@@ -540,9 +540,22 @@ test("table data SQL export forwards the selected mode to the table backend", as
   assert.equal(apiMock.startTableExport.mock.calls[0][0].insertMode, "single");
 });
 
+test("table data SQL export filters columns and types when selectedColumns is provided", async () => {
+  runtimeMock.isTauri = true;
+  dialogMock.save.mockResolvedValue("/tmp/users.sql");
+  sqlInsertModeMock.showSqlInsertModeDialog.mockResolvedValueOnce({ insertMode: "batch", selectedColumns: ["name"] });
+  const { composable } = buildTableDataExportHarness();
+
+  await composable.exportSql();
+
+  assert.equal(apiMock.startTableExport.mock.calls[0][0].format, "sql");
+  assert.deepEqual(apiMock.startTableExport.mock.calls[0][0].columns, ["name"]);
+  assert.deepEqual(apiMock.startTableExport.mock.calls[0][0].columnTypes, ["text"]);
+});
+
 test("local SQL export maps the selected mode to the shared formatter", async () => {
   const download = installTextDownloadCapture();
-  sqlInsertModeMock.showSqlInsertModeDialog.mockResolvedValueOnce("single");
+  sqlInsertModeMock.showSqlInsertModeDialog.mockResolvedValueOnce({ insertMode: "single", selectedColumns: undefined });
   apiMock.buildExportSqlInsert.mockResolvedValueOnce("INSERT INTO `users` (`id`, `name`) VALUES (1, 'Ada');");
 
   try {
@@ -560,6 +573,35 @@ test("local SQL export maps the selected mode to the shared formatter", async ()
     await composable.exportSql();
 
     assert.equal(apiMock.buildExportSqlInsert.mock.calls[0][0].batchSize, 1);
+  } finally {
+    download.restore();
+  }
+});
+
+test("local SQL export filters selected columns and data", async () => {
+  const download = installTextDownloadCapture();
+  sqlInsertModeMock.showSqlInsertModeDialog.mockResolvedValueOnce({ insertMode: "batch", selectedColumns: ["name"] });
+  apiMock.buildExportSqlInsert.mockResolvedValueOnce("INSERT INTO `users` (`name`) VALUES ('Ada'), ('Lin');");
+
+  try {
+    const completeLocalResult: QueryResult = {
+      columns: ["id", "name"],
+      column_types: ["int", "text"],
+      rows: [
+        [1, "Ada"],
+        [2, "Lin"],
+      ],
+      affected_rows: 0,
+      execution_time_ms: 1,
+      truncated: false,
+      has_more: false,
+    };
+    const { composable } = buildExportHarness({ completeLocalResult });
+
+    await composable.exportSql();
+
+    assert.deepEqual(apiMock.buildExportSqlInsert.mock.calls[0][0].columns, ["name"]);
+    assert.deepEqual(apiMock.buildExportSqlInsert.mock.calls[0][0].rows, [["Ada"], ["Lin"]]);
   } finally {
     download.restore();
   }

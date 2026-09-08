@@ -4,15 +4,23 @@ import i18n from "@/i18n";
 
 export type SqlInsertMode = "batch" | "single";
 
+export type SqlInsertExportOptions = SqlExportOptions;
+
 export interface SqlExportOptions {
   insertMode: SqlInsertMode;
   splitMaxMb?: number;
+  selectedColumns?: string[];
 }
 
 export const DEFAULT_SQL_INSERT_MODE: SqlInsertMode = "batch";
 
-export function showSqlInsertModeDialog(options: { allowSplit?: boolean } = {}): Promise<SqlExportOptions | null> {
-  if (typeof document === "undefined") return Promise.resolve({ insertMode: DEFAULT_SQL_INSERT_MODE });
+export function showSqlInsertModeDialog(options: { allowSplit?: boolean; columns?: string[] } = {}): Promise<SqlExportOptions | null> {
+  if (typeof document === "undefined") {
+    return Promise.resolve({
+      insertMode: DEFAULT_SQL_INSERT_MODE,
+      selectedColumns: options.columns ? [...options.columns] : undefined,
+    });
+  }
 
   return new Promise((resolve) => {
     const container = document.createElement("div");
@@ -29,7 +37,8 @@ export function showSqlInsertModeDialog(options: { allowSplit?: boolean } = {}):
     app = createApp(SqlInsertModeDialog, {
       open: true,
       allowSplit: options.allowSplit === true,
-      onConfirm: (options: SqlExportOptions) => finish(options),
+      columns: options.columns,
+      onConfirm: (exportOptions: SqlExportOptions) => finish(exportOptions),
       onCancel: () => finish(null),
     });
     app.use(i18n);

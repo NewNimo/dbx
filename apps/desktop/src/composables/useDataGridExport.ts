@@ -1166,7 +1166,7 @@ export function useDataGridExport(options: UseDataGridExportOptions) {
     await exportAllResultsXlsxResult(true);
   }
 
-  async function exportFullTableDataViaBackend(format: "csv" | "xlsx" | "json" | "markdown" | "sql" | "txt", rowIds?: number[], headerMode: XlsxHeaderMode = "name", autoFilter = true, sqlExportOptions?: SqlExportOptions): Promise<boolean> {
+  async function exportFullTableDataViaBackend(format: "csv" | "xlsx" | "json" | "markdown" | "sql" | "txt", rowIds?: number[], headerMode: XlsxHeaderMode = "name", autoFilter = true, sqlExportOptions?: SqlExportOptions, selectedColumns?: string[]): Promise<boolean> {
     const meta = tableMeta.value;
     // The backend table exporter currently builds two-part table names. External
     // Doris/StarRocks catalogs need the data-tab paginator's three-part SQL.
@@ -1215,6 +1215,19 @@ export function useDataGridExport(options: UseDataGridExportOptions) {
     const editorSettings = useSettingsStore().editorSettings;
     const rowLimit = editorSettings.exportRowLimitEnabled ? editorSettings.exportRowLimit : null;
 
+    const targetColumns = (selectedColumns && selectedColumns.length > 0)
+      ? selectedColumns
+      : (sqlExportOptions?.selectedColumns && sqlExportOptions.selectedColumns.length > 0)
+        ? sqlExportOptions.selectedColumns
+        : columns.value;
+    const targetColumnTypes =
+      selectedColumns && columnTypes.value
+        ? selectedColumns.map((col) => {
+            const idx = columns.value.indexOf(col);
+            return idx >= 0 ? columnTypes.value![idx] : undefined;
+          })
+        : columnTypes.value;
+
     try {
       const progress = await api.startTableExport(
         {
@@ -1228,9 +1241,9 @@ export function useDataGridExport(options: UseDataGridExportOptions) {
           format,
           ...(format === "sql" && sqlExportOptions ? { insertMode: sqlExportOptions.insertMode, splitMaxMb: sqlExportOptions.splitMaxMb } : {}),
           csvQuoteMode: editorSettings.csvQuoteMode,
-          columns: columns.value,
-          columnTypes: columnTypes.value,
-          columnComments: format === "xlsx" ? buildXlsxHeaderOverrides(columns.value, visibleXlsxColumnComments.value, headerMode) : undefined,
+          columns: targetColumns,
+          columnTypes: targetColumnTypes,
+          columnComments: format === "xlsx" ? buildXlsxHeaderOverrides(targetColumns, commentsForExportColumns(targetColumns, false), headerMode) : undefined,
           primaryKeys: meta.primaryKeys,
           whereInput: whereInput.value,
           orderBy: orderBy.value,
@@ -1412,18 +1425,23 @@ export function useDataGridExport(options: UseDataGridExportOptions) {
         },
         true,
       );
-      const selectedSqlExportOptions = (await showSqlInsertModeDialog({ allowSplit: rowIds === undefined && context.value === "table-data" })) as SqlExportOptions | SqlInsertMode | null;
+      const availableCols = allColumns.value.length > 0 ? allColumns.value : columns.value;
+      const selectedSqlExportOptions = await showSqlInsertModeDialog({
+        allowSplit: rowIds === undefined && context.value === "table-data",
+        columns: availableCols,
+      });
       if (selectedSqlExportOptions === null) {
         logExportStage("cancelled", { stage: "insert-mode-dialog" });
         return;
       }
-      const sqlExportOptions = typeof selectedSqlExportOptions === "string" ? { insertMode: selectedSqlExportOptions } : selectedSqlExportOptions;
+      const sqlExportOptions = selectedSqlExportOptions;
       const insertMode = sqlExportOptions.insertMode;
-      logExportStage("mode-selected", { insertMode, splitMaxMb: sqlExportOptions.splitMaxMb });
+      const selectedColumns = sqlExportOptions.selectedColumns;
+      logExportStage("mode-selected", { insertMode, splitMaxMb: sqlExportOptions.splitMaxMb, selectedColumnsCount: selectedColumns?.length });
       try {
         // Step 1: table-data context — existing backend table export
         logExportStage("backend-export-start");
-        const handledByBackend = await exportFullTableDataViaBackend("sql", rowIds, "name", true, sqlExportOptions);
+        const handledByBackend = await exportFullTableDataViaBackend("sql", rowIds, "name", true, sqlExportOptions, selectedColumns);
         logExportStage("backend-export-finished", { handledByBackend });
         if (handledByBackend) {
           logExportStage("done", { path: "backend" });
@@ -1452,7 +1470,7 @@ export function useDataGridExport(options: UseDataGridExportOptions) {
         );
 
         logExportStage("row-remap-start");
-        const exportData = sqlInsertExportData(result);
+        const exportData = sqlInsertExportData(result, selectedColumns);
         logExportStage("row-remap-done", {
           columns: exportData.columns.length,
           rows: exportData.rows.length,
@@ -1495,12 +1513,13 @@ export function useDataGridExport(options: UseDataGridExportOptions) {
 
   async function exportCurrentPageSql() {
     await runExclusiveExport(async () => {
-      const selectedSqlExportOptions = (await showSqlInsertModeDialog()) as SqlExportOptions | SqlInsertMode | null;
+      const selectedSqlExportOptions = await showSqlInsertModeDialog({ columns: columns.value });
       if (selectedSqlExportOptions === null) return;
-      const insertMode = typeof selectedSqlExportOptions === "string" ? selectedSqlExportOptions : selectedSqlExportOptions.insertMode;
+      const insertMode = selectedSqlExportOptions.insertMode;
+      const selectedColumns = selectedSqlExportOptions.selectedColumns;
       try {
         const result = await resultToExport(undefined, undefined, false, false);
-        const exportData = sqlInsertExportData(result);
+        const exportData = sqlInsertExportData(result, selectedColumns);
         const content = await formatSqlInsert({
           databaseType: databaseType.value,
           identifierQuote: options.identifierQuote?.value,
@@ -1526,14 +1545,19 @@ export function useDataGridExport(options: UseDataGridExportOptions) {
     await copyText(sql.value);
   }
 
-  function sqlInsertExportData(result: { columns: string[]; rows: CellValue[][]; spatialColumns?: QueryResult["spatial_columns"]; spatialValues?: QueryResult["spatial_values"] }): {
+  function sqlInsertExportData(
+    result: { columns: string[]; rows: CellValue[][]; spatialColumns?: QueryResult["spatial_columns"]; spatialValues?: QueryResult["spatial_values"] },
+    selectedColumns?: string[],
+  ): {
     columns: string[];
     columnTypes?: Array<string | undefined>;
     spatialColumns?: QueryResult["spatial_columns"];
     spatialValues?: QueryResult["spatial_values"];
     rows: CellValue[][];
   } {
-    const exportColumns = context.value === "table-data" && tableMeta.value ? effectiveColumns(sourceColumns.value, result.columns) : result.columns;
+    const rawExportColumns = context.value === "table-data" && tableMeta.value ? effectiveColumns(sourceColumns.value, result.columns) : result.columns;
+    const selectedSet = selectedColumns ? new Set(selectedColumns) : null;
+    const exportColumns = selectedSet ? rawExportColumns.map((c) => (c && selectedSet.has(c) ? c : undefined)) : rawExportColumns;
     const columnIndexes = exportColumns.map((column, index) => ({ column, index })).filter((item): item is { column: string; index: number } => !!item.column);
     const exportColumnTypes = columnTypes.value?.length === result.columns.length ? columnTypes.value : undefined;
     const indexBySource = new Map(columnIndexes.map((item, index) => [item.index, index]));
