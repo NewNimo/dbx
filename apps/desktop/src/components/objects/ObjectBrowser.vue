@@ -2108,9 +2108,18 @@ async function exportData(row: ObjectBrowserRow, format: "csv" | "json" | "sql")
     await exportDataLegacy(row, format);
     return;
   }
-  const insertMode = format === "sql" ? await showSqlInsertModeDialog() : undefined;
-  if (format === "sql" && insertMode === null) return;
-  await exportTableData(row, format, undefined, "name", true, insertMode ?? "batch");
+  const schema = row.schema || selectedSchema.value;
+  let columnInfos: ColumnInfo[] | undefined;
+  if (format === "sql") {
+    try {
+      columnInfos = await api.getColumns(props.connection.id, props.database, schema || props.database, row.name, props.catalog);
+    } catch {
+      // Export still works when column metadata is unavailable.
+    }
+  }
+  const exportOptions = format === "sql" ? await showSqlInsertModeDialog({ columns: columnInfos?.map((c) => c.name) }) : undefined;
+  if (format === "sql" && exportOptions === null) return;
+  await exportTableData(row, format, columnInfos, "name", true, exportOptions?.insertMode ?? "batch", exportOptions?.selectedColumns);
 }
 
 function showObjectBrowserXlsxHeaderDialog(hasComments: boolean): Promise<XlsxExportOptions | null> {
@@ -2153,7 +2162,7 @@ async function exportDataXlsx(row: ObjectBrowserRow) {
   await exportTableData(row, "xlsx", columnInfos, exportOptions.headerMode, exportOptions.autoFilter);
 }
 
-async function exportTableData(row: ObjectBrowserRow, format: "csv" | "xlsx" | "sql", columnInfos?: ColumnInfo[], headerMode: XlsxHeaderMode = "name", autoFilter = true, insertMode: SqlInsertMode = "batch") {
+async function exportTableData(row: ObjectBrowserRow, format: "csv" | "xlsx" | "sql", columnInfos?: ColumnInfo[], headerMode: XlsxHeaderMode = "name", autoFilter = true, insertMode: SqlInsertMode = "batch", selectedColumns?: string[]) {
   const schema = row.schema || selectedSchema.value;
 
   // Save dialog first
@@ -2201,7 +2210,17 @@ async function exportTableData(row: ObjectBrowserRow, format: "csv" | "xlsx" | "
     let columns: string[] | undefined;
     let columnComments: (string | null)[] | undefined;
 
-    if (columnInfos) {
+    if (selectedColumns && selectedColumns.length > 0) {
+      columns = selectedColumns;
+      if (format === "xlsx" && columnInfos) {
+        const commentMap = new Map(columnInfos.map((c) => [c.name, c.comment]));
+        columnComments = buildXlsxHeaderOverrides(
+          columns,
+          columns.map((col) => commentMap.get(col)),
+          headerMode,
+        );
+      }
+    } else if (columnInfos) {
       columns = columnInfos.map((c) => c.name);
       if (format === "xlsx") {
         columnComments = buildXlsxHeaderOverrides(

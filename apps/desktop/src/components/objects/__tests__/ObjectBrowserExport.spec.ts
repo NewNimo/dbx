@@ -30,8 +30,8 @@ describe("ObjectBrowser XLSX export", () => {
     const exportData = functionBody("exportData");
     const exportTableData = functionBody("exportTableData");
 
-    expect(exportData).toContain("await showSqlInsertModeDialog()");
-    expect(exportData.indexOf("await showSqlInsertModeDialog()")).toBeLessThan(exportData.indexOf("await exportTableData("));
+    expect(exportData).toContain("await showSqlInsertModeDialog({ columns: columnInfos?.map((c) => c.name) })");
+    expect(exportData.indexOf("await showSqlInsertModeDialog({ columns: columnInfos?.map((c) => c.name) })")).toBeLessThan(exportData.indexOf("await exportTableData("));
     expect(exportTableData).toContain('...(format === "sql" ? { insertMode } : {})');
   });
 

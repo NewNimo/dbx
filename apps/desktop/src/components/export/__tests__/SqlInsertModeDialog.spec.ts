@@ -37,13 +37,13 @@ afterEach(() => {
   i18n.global.locale.value = "en";
 });
 
-async function mountDialog(onConfirm = () => {}, onCancel = () => {}) {
+async function mountDialog(onConfirm = () => {}, onCancel = () => {}, columns?: string[]) {
   const container = document.createElement("div");
   document.body.appendChild(container);
   const app = createApp(
     defineComponent({
       setup() {
-        return () => h(SqlInsertModeDialog, { open: true, onConfirm, onCancel });
+        return () => h(SqlInsertModeDialog, { open: true, columns, onConfirm, onCancel });
       },
     }),
   );
@@ -68,7 +68,10 @@ describe("SqlInsertModeDialog", () => {
     document.querySelector<HTMLButtonElement>("[data-sql-insert-mode-confirm]")?.click();
 
     expect(onConfirm).toHaveBeenCalledOnce();
-    expect(onConfirm).toHaveBeenCalledWith("single");
+    expect(onConfirm).toHaveBeenCalledWith({
+      insertMode: "single",
+      selectedColumns: undefined,
+    });
   });
 
   it("renders the batch and single-row explanations", async () => {
@@ -78,6 +81,46 @@ describe("SqlInsertModeDialog", () => {
     expect(document.body.textContent).toContain("One row per statement");
     expect(document.body.textContent).toContain("Combine multiple rows into each INSERT statement");
     expect(document.body.textContent).toContain("Write one complete INSERT statement per row");
+  });
+
+  it("supports column selection, select all, deselect all, and validation", async () => {
+    const onConfirm = vi.fn();
+    const columns = ["id", "username", "email"];
+    await mountDialog(onConfirm, () => {}, columns);
+
+    expect(document.body.textContent).toContain("Export columns (3/3)");
+
+    const checkboxes = document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+    expect(checkboxes.length).toBe(3);
+    checkboxes.forEach((cb) => expect(cb.checked).toBe(true));
+
+    const deselectBtn = document.querySelector<HTMLButtonElement>("[data-sql-insert-deselect-all]");
+    const selectAllBtn = document.querySelector<HTMLButtonElement>("[data-sql-insert-select-all]");
+    const confirmBtn = document.querySelector<HTMLButtonElement>("[data-sql-insert-mode-confirm]");
+
+    // Click deselect all
+    deselectBtn?.click();
+    await nextTick();
+    expect(document.body.textContent).toContain("Export columns (0/3)");
+    expect(confirmBtn?.disabled).toBe(true);
+
+    // Click select all
+    selectAllBtn?.click();
+    await nextTick();
+    expect(document.body.textContent).toContain("Export columns (3/3)");
+    expect(confirmBtn?.disabled).toBe(false);
+
+    // Deselect "id"
+    checkboxes[0]?.click();
+    await nextTick();
+    expect(document.body.textContent).toContain("Export columns (2/3)");
+
+    confirmBtn?.click();
+    expect(onConfirm).toHaveBeenCalledOnce();
+    expect(onConfirm).toHaveBeenCalledWith({
+      insertMode: "batch",
+      selectedColumns: ["username", "email"],
+    });
   });
 
   it("emits cancel without selecting a mode", async () => {
