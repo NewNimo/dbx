@@ -50,12 +50,14 @@
   - `apps/desktop/src/components/editor/EditorSettingsDialog.vue`
   - `apps/desktop/src/App.vue` (`showSettingsDialog`, `showDriverStoreDialog`)
 
-### 🌟 3. 新建查询上下文智能跟随
+### 🌟 3. 新建查询上下文智能跟随与内联 `+` 快捷按钮
 - **功能描述**：
   - 点击“新建查询”时，自动智能继承当前**正处于激活状态的标签页**（或选中的对象节点）所在的连接与数据库信息，避免新建到其他无关连接。
-  - 在标签栏最右侧提供紧随最后一个标签的 `+` 快捷新建查询按钮。
+  - 在第二层查询与数据表标签栏中，**紧随最右侧（最后一个）标签页末尾内联追加 `+` 快捷新建查询按钮**，随标签页的动态增删及横向溢出滚动无缝同步位置。
+  - 通过在官方 `EditorGroupTabBar.vue` 的标签项末尾开放 `<slot name="after-tabs" />` 插槽，并在 `CustomSqlyogShell.vue` 中注入该内联按钮实现。
 - **涉及核心文件**：
   - `apps/desktop/src/lib/sql/newQueryContext.ts`
+  - `apps/desktop/src/components/layout/EditorGroupTabBar.vue` (`<slot name="after-tabs" />`)
   - `apps/desktop/src/components/layout/CustomSqlyogShell.vue`
   - `apps/desktop/src/App.vue` (`newQuery`)
 
@@ -128,6 +130,7 @@
 | :--- | :--- | :--- | :--- |
 | `apps/desktop/src/App.vue` | 修改 | 顶层挂载点，通过 `isSqlyogLayout` 分支渲染自定义外壳 | 仅保留计算属性与外壳挂载，勿改官方业务逻辑 |
 | `apps/desktop/src/components/layout/CustomSqlyogShell.vue` | 新增 | SQLyog 风格应用主外壳（顶层工具栏、连接标签栏、对象树与内容区编排） | 核心保留文件，需随官方 ContentArea 签名同步更新 |
+| `apps/desktop/src/components/layout/EditorGroupTabBar.vue` | 修改 | 为滚动页签列表末尾提供 `after-tabs` 插槽，支持内联紧跟 `+` 快捷新建查询按钮 | 确保保留 `<slot name="after-tabs" />` |
 | `apps/desktop/src/components/layout/CustomConnectionTabBar.vue` | 新增 | 第一层连接标签栏 UI 组件 | 核心保留文件 |
 | `apps/desktop/src/composables/useCustomConnectionTabs.ts` | 新增 | 连接标签生命周期、激活状态记忆与关闭检查逻辑 | 核心保留文件 |
 | `apps/desktop/src/lib/editor/queryEditorTextEdits.ts` | 新增 | 光标处智能插入文本工具函数 | 核心保留文件 |
@@ -188,6 +191,6 @@ git push origin custom --force-with-lease
 - [ ] **是否复用了官方通用组件？**（没有篡改 `DataGrid`、`QueryEditor` 等内部实现）
 - [ ] **是否采用了 Wrapper 外壳隔离？**（布局修改集中在 `Custom*.vue` 或 `App.vue` 条件分支）
 - [ ] **是否检查了官方组件更替与职责迁移？**（核对自定义外壳所引用的官方组件是否在上游被废弃、拆分或掏空，确保未保存确认弹窗、右键菜单、快捷键等挂载点完整）
-- [ ] **6 项核心自定义功能是否全部正常保留并逐一核对？**（多连接标签切换、设置弹窗、新建查询上下文、双击表名插入、关闭未保存拦截、SQL 导出字段筛选与防崩）
+- [ ] **6 项核心自定义功能是否全部正常保留并逐一核对？**（多连接标签切换、设置弹窗、新建查询上下文与内联 + 按钮、双击表名插入、关闭未保存拦截、SQL 导出字段筛选与防崩）
 - [ ] **`pnpm typecheck` 是否 0 报错通过？**
 - [ ] **`pnpm test` 是否全部单元测试通过？**

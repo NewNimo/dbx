@@ -1526,6 +1526,8 @@ watch([() => props.specialPageTabs?.settingsActive, () => props.specialPageTabs?
                     </div>
                   </CustomContextMenu>
                 </template>
+                <!-- [CUSTOM_TAB_ACTION] Slot for actions appended right after the last tab pill -->
+                <slot v-if="!section.pinned" name="after-tabs" />
                 <div v-if="!section.pinned" :class="tabTailDragRegionClass" data-tauri-drag-region />
               </div>
             </div>

@@ -24,7 +24,7 @@
 | :--- | :--- | :--- | :--- |
 | **1** | **SQLyog 多连接标签页模型** | • 顶部新增第一层“连接标签栏”，支持多个已打开的数据库连接以独立标签展示与快速切换<br>• 左侧对象树自动跟随激活的连接标签过滤展示当前连接的内容<br>• 首次打开连接时自动展开数据库节点<br>• 第二层查询标签栏与连接相互绑定，切换连接时自动记住并恢复该连接上一次激活的查询页 | `CustomSqlyogShell.vue`<br>`CustomConnectionTabBar.vue`<br>`useCustomConnectionTabs.ts`<br>`App.vue`<br>`settingsStore.ts` |
 | **2** | **设置与驱动管理弹窗化** | • 官方默认将“设置页面”与“驱动商店”作为全屏标签页嵌入主工作区<br>• 定制版将其重构为独立的**模态弹窗（Dialog）**，点击顶部工具栏设置/驱动管理时直接弹出，不挤占与混淆查询标签页 | `EditorSettingsDialog.vue`<br>`App.vue`<br>`AppToolbar.vue` |
-| **3** | **新建查询上下文智能跟随** | • 点击“新建查询”时，智能继承当前**正处于激活状态的标签页**所在的连接与数据库信息，避免新建到其他连接<br>• 在标签栏最右侧添加跟随最后一个标签的快捷 `+` 新建按钮 | `newQueryContext.ts`<br>`CustomSqlyogShell.vue`<br>`App.vue` |
+| **3** | **新建查询上下文智能跟随与内联 `+` 按钮** | • 点击“新建查询”时，智能继承当前**正处于激活状态的标签页**所在的连接与数据库信息，避免新建到其他连接<br>• 在查询与数据表标签栏中，为最右侧标签页紧随内联追加 `+` 快捷新建按钮，随横向增删与滚动自动同步 | `newQueryContext.ts`<br>`CustomSqlyogShell.vue`<br>`EditorGroupTabBar.vue`<br>`App.vue` |
 | **4** | **对象树双击智能光标插入** | • 当当前有激活的 SQL 查询编辑器时，双击左侧对象树中的表名，**自动将表名插入到 SQL 编辑器光标所在位置**<br>• 当处于非查询页面或无激活编辑器时，保持官方默认行为（直接打开表数据网格） | `AppSidebar.vue`<br>`queryEditorTextEdits.ts`<br>`ConnectionTree.vue` |
 | **5** | **连接关闭未保存拦截保护** | • 关闭单个连接标签页时，自动扫描属于该连接的所有查询页及未提交的表数据编辑<br>• 若存在未保存内容，弹出确认弹窗提示保存或放弃，防止误关丢失修改 | `useCustomConnectionTabs.ts`<br>`useDataGridEditor.ts`<br>`CustomSqlyogShell.vue` |
 | **6** | **SQL INSERT 导出字段筛选与后端防崩** | • 在 SQL INSERT 导出模式弹窗中新增字段选择器，默认全选，支持按需勾选导出部分字段<br>• 在数据表与查询结果集导出中全链路支持字段投影过滤<br>• 后端为导出执行器新增独立 8MB 线程栈包装函数，彻底解决 Windows 平台 Debug 构建下巨型 Future 栈溢出崩溃（`STATUS_STACK_OVERFLOW`）<br>• 保持原始业务逻辑不动，调用入口统一附带 `[CUSTOM_*] REVERT` 注释，易于后续上游升级一键还原 | `SqlInsertModeDialog.vue`<br>`useDataGridExport.ts`<br>`export_runtime.rs`<br>`query_result_export.rs`<br>`commands/*_export.rs` |
@@ -42,6 +42,7 @@ apps/desktop/src/
 │   ├── layout/
 │   │   ├── CustomSqlyogShell.vue      # [新增] SQLyog 风格应用主外壳（隔离官方布局）
 │   │   ├── CustomConnectionTabBar.vue # [新增] 顶层连接标签栏组件
+│   │   ├── EditorGroupTabBar.vue      # [微调] 增加 after-tabs 插槽以承载内联 + 按钮
 │   │   ├── AppSidebar.vue             # [微调] 增加双击表名插入光标事件转发
 │   │   └── AppTabBar.vue              # [微调] 保持兼容与特殊页面工作区
 │   └── objects/ObjectBrowser.vue      # [微调] 表数据 SQL 导出传递字段元数据
