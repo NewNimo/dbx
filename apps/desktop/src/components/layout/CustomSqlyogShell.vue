@@ -672,11 +672,21 @@ defineExpose({ closeOtherActiveTabs });
               @start-resize="emit('start-tab-bar-resize', $event)"
               @toggle-collapse="emit('toggle-tab-bar-collapse')"
               @detach-tab="emit('detach-tab', $event)"
-            />
+            >
+              <template #after-tabs>
+                <button
+                  type="button"
+                  class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted-foreground/20 hover:text-foreground self-center ml-1 cursor-pointer transition-colors"
+                  :title="t('toolbar.newQuery')"
+                  :aria-label="t('toolbar.newQuery')"
+                  @pointerdown.stop
+                  @click="emit('new-query')"
+                >
+                  <Plus class="h-3.5 w-3.5" />
+                </button>
+              </template>
+            </EditorGroupTabBar>
           </div>
-          <Button variant="ghost" size="icon" class="h-7 w-7 shrink-0 mr-1.5 text-muted-foreground hover:text-foreground" :title="t('toolbar.newQuery')" @click="emit('new-query')">
-            <Plus class="h-4 w-4" />
-          </Button>
         </div>
 
         <!-- Query Workspace (when activeTab is open) -->
