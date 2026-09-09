@@ -185,6 +185,7 @@ const emit = defineEmits<{
   "preview-changes-available": [val: boolean];
   "editor-viewport-change": [tabId: string, viewport: any];
   "editor-selection-state-change": [tabId: string, selection: any];
+  "editor-state-flushed": [tabId: string];
   "format-error": [];
   reload: [tabId: string, sql?: string, searchText?: string, whereInput?: string, orderBy?: string, limit?: number, offset?: number, intent?: any];
   paginate: [tabId: string, offset: number, limit: number, whereInput?: string, orderBy?: string];
@@ -198,6 +199,7 @@ const emit = defineEmits<{
   "open-object-table": [tabId: string, target: any];
   "object-schema-change": [tabId: string, schema: string | undefined];
   "object-browser-viewport-change": [tabId: string, viewport: any];
+  "object-browser-search-change": [tabId: string, query: string];
   "structure-editor-saved": [tabId: string, commentChanged: boolean];
   "structure-editor-close": [tabId: string];
   "open-connection-settings": [connectionId: string];
@@ -759,6 +761,7 @@ defineExpose({ closeOtherActiveTabs });
               @preview-changes-available="(_tabId, val) => emit('preview-changes-available', val)"
               @editor-viewport-change="(id, vp) => emit('editor-viewport-change', id, vp)"
               @editor-selection-state-change="(id, sel) => emit('editor-selection-state-change', id, sel)"
+              @editor-state-flushed="(id) => emit('editor-state-flushed', id)"
               @format-error="(_tabId) => emit('format-error')"
               @save-sql="(_tabId) => emit('save-sql')"
               @reload="(tabId, ...args) => emit('reload', tabId, ...args)"
@@ -773,6 +776,7 @@ defineExpose({ closeOtherActiveTabs });
               @open-object-table="(tabId, target) => emit('open-object-table', tabId, target)"
               @object-schema-change="(tabId, schema) => emit('object-schema-change', tabId, schema)"
               @object-browser-viewport-change="(tabId, vp) => emit('object-browser-viewport-change', tabId, vp)"
+              @object-browser-search-change="(tabId, query) => emit('object-browser-search-change', tabId, query)"
               @structure-editor-saved="(tabId, changed) => emit('structure-editor-saved', tabId, changed)"
               @structure-editor-close="(tabId) => emit('structure-editor-close', tabId)"
               @open-settings="(t) => emit('open-settings', t)"

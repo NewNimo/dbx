@@ -3561,6 +3561,7 @@ onUnmounted(() => {
         @preview-changes-available="(v: boolean) => (previewChangesAvailable = v)"
         @editor-viewport-change="(tabId: string, viewport: { scrollTop: number; scrollLeft: number }) => queryStore.updateEditorViewport(tabId, viewport)"
         @editor-selection-state-change="(tabId: string, selection: { anchor: number; head: number }) => queryStore.updateEditorSelection(tabId, selection)"
+        @editor-state-flushed="(tabId: string) => void queryStore.flushEditorState(tabId)"
         @format-error="toast(t('toolbar.formatSqlFailed'))"
         @reload="(tabId: string, sql: any, searchText: any, whereInput: any, orderBy: any, limit: any, offset: any, intent: any) => onReloadData(tabId, sql, searchText, whereInput, orderBy, limit, offset, intent)"
         @paginate="(tabId: string, offset: number, limit: number, whereInput?: string, orderBy?: string) => onPaginate(tabId, offset, limit, whereInput, orderBy)"
@@ -3588,6 +3589,7 @@ onUnmounted(() => {
         "
         @object-schema-change="(tabId: string, schema: string | undefined) => queryStore.updateSchema(tabId, schema)"
         @object-browser-viewport-change="(tabId: string, viewport: any) => queryStore.updateObjectBrowserViewport(tabId, viewport)"
+        @object-browser-search-change="(tabId: string, query: string) => queryStore.updateObjectBrowserSearch(tabId, query)"
         @structure-editor-saved="
           (tabId: string, commentChanged: boolean) => {
             const tab = queryStore.tabs.find((candidate) => candidate.id === tabId);

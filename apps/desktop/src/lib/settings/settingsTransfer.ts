@@ -269,7 +269,7 @@ const PASS_THROUGH_BOOLEAN_KEYS = [
 const PASS_THROUGH_FIELD_VALIDATORS: Partial<Record<EditorSettingsDraftKey, (value: unknown) => boolean>> = {
   // The editor font slider and the Ctrl+wheel zoom both clamp to this range.
   fontSize: (value) => typeof value === "number" && Number.isFinite(value) && value >= EDITOR_MIN_FONT_SIZE && value <= EDITOR_MAX_FONT_SIZE,
-  appLayout: (value) => value === "separated" || value === "classic",
+  appLayout: (value) => value === "separated" || value === "classic" || value === "sqlyog",
   activeCustomThemeId: (value) => typeof value === "string" && value.trim().length > 0,
   // normalizeToolbarItems keeps unknown/typed values for every known key, so
   // each one must already be the boolean the UI writes, and no extra key may
