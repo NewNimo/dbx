@@ -715,7 +715,7 @@ defineExpose({ closeOtherActiveTabs });
             @rollback="emit('rollback')"
             @dismiss-txn-rolled-back="emit('dismiss-txn-rolled-back')"
             @execute-pointer-down="emit('execute-pointer-down')"
-            @execute="emit('execute', $event)"
+            @toolbar-execute="emit('execute', $event)"
             @preview-changes="emit('preview-changes')"
             @multi-execute="emit('multi-execute')"
             @cancel="emit('cancel')"
@@ -737,7 +737,11 @@ defineExpose({ closeOtherActiveTabs });
           <KeepAlive :max="4">
             <ContentArea
               :key="activeTab.id"
-              :ref="contentAreaRef"
+              :ref="
+                (el: any) => {
+                  if (contentAreaRef && typeof contentAreaRef === 'object' && 'value' in contentAreaRef) contentAreaRef.value = el;
+                }
+              "
               :active-tab="activeTab"
               :active-connection="activeConnection"
               :executable-sql="executableSql"
