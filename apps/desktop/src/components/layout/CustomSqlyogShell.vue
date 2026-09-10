@@ -158,21 +158,21 @@ const emit = defineEmits<{
   execute: [options: any];
   "preview-changes": [];
   "multi-execute": [];
-  cancel: [];
-  explain: [];
-  "format-sql": [];
-  "compress-sql": [];
+  cancel: [tabId?: string];
+  explain: [tabId?: string];
+  "format-sql": [tabId?: string];
+  "compress-sql": [tabId?: string];
   "toggle-sql-keyword-case": [];
-  "save-sql": [];
+  "save-sql": [tabId?: string];
   "open-sql": [];
-  "import-result-archive": [data: any];
+  "import-result-archive": [];
   "paste-sql-in-condition": [];
-  "change-connection": [connectionId: string];
-  "change-database": [database: string];
-  "change-catalog": [catalog: string | undefined, database: string];
-  "change-schema": [schema: string | undefined];
-  "set-default-database": [];
-  "clear-default-database": [];
+  "change-connection": [tabId: string, connectionId: string];
+  "change-database": [tabId: string, database: string];
+  "change-catalog": [tabId: string, catalog: string | undefined, database: string];
+  "change-schema": [tabId: string, schema: string | undefined];
+  "set-default-database": [tabId?: string];
+  "clear-default-database": [tabId?: string];
 
   // Content Area Actions
   "update:active-output-view": [view: any];
@@ -203,10 +203,12 @@ const emit = defineEmits<{
   "structure-editor-saved": [tabId: string, commentChanged: boolean];
   "structure-editor-close": [tabId: string];
   "open-connection-settings": [connectionId: string];
+  "preview-statement": [tabId: string, range: any];
+  "focus-statement": [tabId: string, range: any];
 
   // Welcome Screen Actions
   "open-connection-query": [connectionId: string];
-  "open-saved-sql": [item: any];
+  "open-saved-sql": [fileId: string];
   "open-mcp-guide": [];
 
   // Auxiliary Panels Resizes & Actions
@@ -222,7 +224,7 @@ const emit = defineEmits<{
   "ai-request-auto-execute-sql": [sql: string];
   "ai-route-redis-command": [command: string, execute: boolean];
   "ai-open-explain-plan": [data?: any];
-  "restore-history-sql": [item: any];
+  "restore-history-sql": [sql: string, entry: any];
   "analyze-history-ai": [item: any];
   "open-explain-plan": [];
 }>();
@@ -718,21 +720,21 @@ defineExpose({ closeOtherActiveTabs });
             @toolbar-execute="emit('execute', $event)"
             @preview-changes="emit('preview-changes')"
             @multi-execute="emit('multi-execute')"
-            @cancel="emit('cancel')"
-            @explain="emit('explain')"
-            @format-sql="emit('format-sql')"
-            @compress-sql="emit('compress-sql')"
+            @cancel="activeTab && emit('cancel', activeTab.id)"
+            @explain="activeTab && emit('explain', activeTab.id)"
+            @format-sql="activeTab && emit('format-sql', activeTab.id)"
+            @compress-sql="activeTab && emit('compress-sql', activeTab.id)"
             @toggle-sql-keyword-case="emit('toggle-sql-keyword-case')"
-            @save-sql="emit('save-sql')"
+            @save-sql="(tabId) => emit('save-sql', tabId)"
             @open-sql="emit('open-sql')"
-            @import-result-archive="emit('import-result-archive', $event)"
+            @import-result-archive="emit('import-result-archive')"
             @paste-sql-in-condition="emit('paste-sql-in-condition')"
-            @change-connection="emit('change-connection', $event)"
-            @change-database="emit('change-database', $event)"
-            @change-catalog="(catalog, database) => emit('change-catalog', catalog, database)"
-            @change-schema="emit('change-schema', $event)"
-            @set-default-database="emit('set-default-database')"
-            @clear-default-database="emit('clear-default-database')"
+            @change-connection="(connId) => activeTab && emit('change-connection', activeTab.id, connId)"
+            @change-database="(db) => activeTab && emit('change-database', activeTab.id, db)"
+            @change-catalog="(catalog, database) => activeTab && emit('change-catalog', activeTab.id, catalog, database)"
+            @change-schema="(schema) => activeTab && emit('change-schema', activeTab.id, schema)"
+            @set-default-database="activeTab && emit('set-default-database', activeTab.id)"
+            @clear-default-database="activeTab && emit('clear-default-database', activeTab.id)"
           />
           <KeepAlive :max="4">
             <ContentArea
@@ -757,8 +759,8 @@ defineExpose({ closeOtherActiveTabs });
               @send-selection-to-ai="(_tabId, sql) => emit('send-selection-to-ai', sql)"
               @execute="(_tabId, opts) => emit('execute', opts)"
               @execute-in-new-result-tab="(_tabId, opts) => emit('execute-in-new-result-tab', opts)"
-              @cancel="(_tabId) => emit('cancel')"
-              @explain="(_tabId) => emit('explain')"
+              @cancel="(tabId) => emit('cancel', tabId)"
+              @explain="(tabId) => emit('explain', tabId)"
               @editor-update="(id, val) => emit('editor-update', id, val)"
               @editor-selection-change="(_tabId, val) => emit('editor-selection-change', val)"
               @editor-cursor-change="(_tabId, pos) => emit('editor-cursor-change', pos)"
@@ -767,7 +769,7 @@ defineExpose({ closeOtherActiveTabs });
               @editor-selection-state-change="(id, sel) => emit('editor-selection-state-change', id, sel)"
               @editor-state-flushed="(id) => emit('editor-state-flushed', id)"
               @format-error="(_tabId) => emit('format-error')"
-              @save-sql="(_tabId) => emit('save-sql')"
+              @save-sql="(tabId) => emit('save-sql', tabId)"
               @reload="(tabId, ...args) => emit('reload', tabId, ...args)"
               @paginate="(tabId, ...args) => emit('paginate', tabId, ...args)"
               @sort="(tabId, ...args) => emit('sort', tabId, ...args)"
@@ -783,6 +785,8 @@ defineExpose({ closeOtherActiveTabs });
               @object-browser-search-change="(tabId, query) => emit('object-browser-search-change', tabId, query)"
               @structure-editor-saved="(tabId, changed) => emit('structure-editor-saved', tabId, changed)"
               @structure-editor-close="(tabId) => emit('structure-editor-close', tabId)"
+              @preview-statement="(tabId, range) => emit('preview-statement', tabId, range)"
+              @focus-statement="(tabId, range) => emit('focus-statement', tabId, range)"
               @open-settings="(t) => emit('open-settings', t)"
               @open-connection-settings="(connId) => emit('open-connection-settings', connId)"
               @toggle-zen-mode="emit('toggle-zen-mode')"
@@ -837,7 +841,7 @@ defineExpose({ closeOtherActiveTabs });
       <div v-if="showHistory" v-show="!isAiPanelMaximized && !isZenMode" class="h-full shrink-0 relative z-30 isolate bg-background border-l border-border/80" :style="{ width: historyWidth + 'px' }">
         <div class="panel-resize-handle panel-resize-handle--left" @mousedown="emit('start-history-resize', $event)" />
         <div class="h-full min-h-0 overflow-hidden">
-          <QueryHistory :current-connection-id="activeTab?.connectionId" :current-database="activeTab?.database" @restore="emit('restore-history-sql', $event)" @analyze-ai="emit('analyze-history-ai', $event)" @close="emit('close-right-panel', 'history')" />
+          <QueryHistory :current-connection-id="activeTab?.connectionId" :current-database="activeTab?.database" @restore="(sql, entry) => emit('restore-history-sql', sql, entry)" @analyze-ai="emit('analyze-history-ai', $event)" @close="emit('close-right-panel', 'history')" />
         </div>
       </div>
 
