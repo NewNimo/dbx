@@ -3761,6 +3761,14 @@ onUnmounted(() => {
         @object-schema-change="(tabId: string, schema: string | undefined) => queryStore.updateSchema(tabId, schema)"
         @object-browser-viewport-change="(tabId: string, viewport: any) => queryStore.updateObjectBrowserViewport(tabId, viewport)"
         @object-browser-search-change="(tabId: string, query: string) => queryStore.updateObjectBrowserSearch(tabId, query)"
+        @object-browser-filter-change="(tabId: string, filter: ObjectBrowserFilter) => queryStore.updateObjectBrowserFilter(tabId, filter)"
+        @add-object-table-to-ai="
+          (tabId: string, tables: Array<{ name: string; schema?: string }>) => {
+            const tab = queryStore.tabs.find((candidate) => candidate.id === tabId) ?? activeTab;
+            if (!tab) return;
+            addToAi(objectBrowserTablesToAiTreeNodes(tab, tables));
+          }
+        "
         @structure-editor-saved="
           (tabId: string, commentChanged: boolean) => {
             const tab = queryStore.tabs.find((candidate) => candidate.id === tabId);

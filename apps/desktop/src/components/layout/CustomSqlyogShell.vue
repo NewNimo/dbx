@@ -202,11 +202,14 @@ const emit = defineEmits<{
   "object-schema-change": [tabId: string, schema: string | undefined];
   "object-browser-viewport-change": [tabId: string, viewport: any];
   "object-browser-search-change": [tabId: string, query: string];
+  "object-browser-filter-change": [tabId: string, filter: any];
+  "add-object-table-to-ai": [tabId: string, tables: Array<{ name: string; schema?: string }>];
   "structure-editor-saved": [tabId: string, commentChanged: boolean];
   "structure-editor-close": [tabId: string];
   "open-connection-settings": [connectionId: string];
   "preview-statement": [tabId: string, range: any];
   "focus-statement": [tabId: string, range: any];
+  "toggle-results-pane": [];
 
   // Welcome Screen Actions
   "open-connection-query": [connectionId: string];
@@ -787,6 +790,8 @@ defineExpose({ closeOtherActiveTabs });
               @object-schema-change="(tabId, schema) => emit('object-schema-change', tabId, schema)"
               @object-browser-viewport-change="(tabId, vp) => emit('object-browser-viewport-change', tabId, vp)"
               @object-browser-search-change="(tabId, query) => emit('object-browser-search-change', tabId, query)"
+              @object-browser-filter-change="(tabId, filter) => emit('object-browser-filter-change', tabId, filter)"
+              @add-object-table-to-ai="(tabId, tables) => emit('add-object-table-to-ai', tabId, tables)"
               @structure-editor-saved="(tabId, changed) => emit('structure-editor-saved', tabId, changed)"
               @structure-editor-close="(tabId) => emit('structure-editor-close', tabId)"
               @preview-statement="(tabId, range) => emit('preview-statement', tabId, range)"
@@ -794,6 +799,7 @@ defineExpose({ closeOtherActiveTabs });
               @open-settings="(t) => emit('open-settings', t)"
               @open-connection-settings="(connId) => emit('open-connection-settings', connId)"
               @toggle-zen-mode="emit('toggle-zen-mode')"
+              @toggle-results-pane="emit('toggle-results-pane')"
             />
           </KeepAlive>
         </div>

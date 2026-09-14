@@ -278,10 +278,10 @@ const isResizingSidePanel = ref(false);
 const sidePanelGuard = createSidePanelRequestGuard();
 const sidePanelRef = ref<InstanceType<typeof CustomTypeInfoPanel> | null>(null);
 const tableMetadataCapabilities = computed<TableMetadataCapabilities>(() => getTableMetadataCapabilities(effectiveDatabaseType.value));
-const effectiveDatabaseType = computed(() => effectiveDatabaseTypeForConnection(props.connection) ?? props.connection.db_type);
-const isGaussdbM = computed(() => effectiveDatabaseType.value === "gaussdb" && props.connection.driver_profile?.toLowerCase() === "gaussdb-m");
+const effectiveDatabaseType = computed(() => (props.connection ? (effectiveDatabaseTypeForConnection(props.connection) ?? props.connection.db_type) : "mysql"));
+const isGaussdbM = computed(() => effectiveDatabaseType.value === "gaussdb" && props.connection?.driver_profile?.toLowerCase() === "gaussdb-m");
 const isVictoriaMetrics = computed(() => effectiveDatabaseType.value === "victoriametrics");
-const isMongodb = computed(() => props.connection.db_type === "mongodb");
+const isMongodb = computed(() => props.connection?.db_type === "mongodb");
 const supportsObjectRowStats = computed(() => !isMongodb.value);
 const supportsObjectSizeStats = computed(() => !isVictoriaMetrics.value && !isMongodb.value);
 const showTableStatistics = computed(() => objectFilter.value === "all" || objectFilter.value === "tables");
@@ -301,7 +301,7 @@ function gaussdbMColumnType(dataType: string): string {
   }
   return dataType;
 }
-const tableStructureDatabaseType = computed(() => tableStructureDatabaseTypeForConnection(props.connection) ?? props.connection.db_type);
+const tableStructureDatabaseType = computed(() => (props.connection ? (tableStructureDatabaseTypeForConnection(props.connection) ?? props.connection.db_type) : "mysql"));
 const sourceEditableText = ref("");
 const sourceDraft = ref("");
 const sourceSaving = ref(false);
@@ -370,7 +370,7 @@ let preserveObjectFilterScrollOnce = false;
 // Export via background tracker
 const { addTask: addExportTask, updateTableExportTask } = useExportTracker();
 
-const needsSchema = computed(() => isSchemaAware(props.connection.db_type) && !connectionUsesDatabaseObjectTreeMode(props.connection));
+const needsSchema = computed(() => (props.connection ? isSchemaAware(props.connection.db_type) && !connectionUsesDatabaseObjectTreeMode(props.connection) : false));
 const canDropTargetCascade = computed(() => dropTarget.value?.type === "TABLE" && supportsDropTableCascade(effectiveDatabaseType.value));
 const canTruncateTargetCascade = computed(() => !!truncateTarget.value && supportsTruncateTableCascade(effectiveDatabaseType.value));
 const objectCounts = computed(() => countObjectBrowserRowsByFilter(rows.value));
@@ -380,7 +380,7 @@ const canOpenStructureEditor = computed(() => supportsTableStructureEditing(tabl
 const canOpenDiagram = computed(() => !!props.database && supportsSchemaDiagram(effectiveDatabaseType.value));
 const canOpenTableImport = computed(() => !!props.database && supportsTableImport(effectiveDatabaseType.value));
 const supportsTruncateTable = computed(() => supportsTableTruncate(effectiveDatabaseType.value));
-const supportsVacuumTable = computed(() => !connectionIsEffectivelyReadOnly(props.connection) && supportsTableVacuum(effectiveDatabaseType.value));
+const supportsVacuumTable = computed(() => (props.connection ? !connectionIsEffectivelyReadOnly(props.connection) && supportsTableVacuum(effectiveDatabaseType.value) : false));
 const vacuumRiskMessage = computed(() => (vacuumExecuting.value ? t("contextMenu.vacuumTableRunningHint") : vacuumTableFull.value ? t("contextMenu.vacuumTableFullRisk") : vacuumTableAnalyze.value ? t("contextMenu.vacuumTableAnalyzeRisk") : t("contextMenu.vacuumTableDefaultRisk")));
 const sourceDialect = computed(() => codeMirrorSqlDialect(effectiveDatabaseType.value));
 const sourceFormatDialect = computed<SqlFormatDialect>(() => sqlFormatDialectForDbType(effectiveDatabaseType.value));
@@ -572,7 +572,7 @@ watch(objectFilter, () => {
 });
 watch([() => props.initialEventName, () => props.initialEventOpenRequestId, rows, loadingObjects], openInitialEventIfNeeded, { flush: "post" });
 watch(
-  () => props.connection.show_system_schemas,
+  () => props.connection?.show_system_schemas,
   (value, oldValue) => {
     if (value === oldValue) return;
     void reload();
