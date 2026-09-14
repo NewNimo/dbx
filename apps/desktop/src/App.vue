@@ -3,7 +3,6 @@ import { blockingDesktopAiRunsForUpdate } from "@/lib/ai/desktopAiRunRegistry";
 import { setupUpdatePreparation, prepareUpdateWithDraftRecovery, isUpdatePreparationActive } from "@/lib/app/updatePreparation";
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, defineAsyncComponent, provide } from "vue";
 import { useI18n } from "vue-i18n";
-import { ChevronsRight, FileText, Package } from "@lucide/vue";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppToolbar from "@/components/layout/AppToolbar.vue";
 import AppTabBar from "@/components/layout/AppTabBar.vue";
@@ -210,7 +209,6 @@ const trackedUpdateTaskCount = computed(() => countActiveUpdateBlockingTasks(act
 const {
   initialize: initializeUpdater,
   dispose: disposeUpdater,
-  isPreparingUpdate,
   checkingUpdates,
   updateInfo,
   updateCheckMessage,
@@ -1057,10 +1055,6 @@ watch(
 );
 
 function activateSettingsPage() {
-  if (isSqlyogLayout.value) {
-    showSettingsDialog.value = true;
-    return;
-  }
   settingsPageTabOpen.value = true;
   activateMainContentSurface("settings");
 }
@@ -3602,6 +3596,7 @@ onUnmounted(() => {
         :sql-library-save-feedback-id="sqlLibrarySaveFeedbackId"
         :show-sql-file-panel="showSqlFilePanel"
         :show-driver-store="showDriverStore"
+        :show-plugin-center="showPluginCenter"
         :show-settings-page="showSettingsPage"
         :checking-updates="checkingUpdates"
         :has-update-available="toolbarHasUpdateAvailable"
@@ -3670,6 +3665,7 @@ onUnmounted(() => {
         @open-github="openGitHub"
         @open-settings="openSettings(toolbarMcpUpdateAvailable ? 'mcp' : 'appearance')"
         @open-driver-store="openDriverStorePage"
+        @open-plugin-center="openPluginCenterPage()"
         @check-updates="checkUpdates()"
         @open-transfer="dialogs.showTransferDialog.value = true"
         @open-sql-file="dialogs.showSqlFileDialog.value = true"
@@ -3707,7 +3703,7 @@ onUnmounted(() => {
         @commit="activeTab && queryStore.commitTransaction(activeTab.id)"
         @rollback="activeTab && queryStore.rollbackTransaction(activeTab.id)"
         @dismiss-txn-rolled-back="activeTab && (activeTab.txnAutoRolledBack = false)"
-        @execute-pointer-down="captureActiveEditorExecutionSnapshot()"
+        @execute-pointer-down="activeTab && captureActiveEditorExecutionSnapshot(activeTab.id)"
         @execute="requestActiveEditorExecute($event)"
         @preview-changes="requestActiveEditorPreviewChanges()"
         @multi-execute="requestMultiDbExecute()"

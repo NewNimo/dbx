@@ -37,6 +37,7 @@ const props = defineProps<{
   sqlLibrarySaveFeedbackId: number;
   showSqlFilePanel: boolean;
   showDriverStore: boolean;
+  showPluginCenter: boolean;
   showSettingsPage: boolean;
   checkingUpdates: boolean;
   hasUpdateAvailable: boolean;
@@ -113,6 +114,7 @@ const emit = defineEmits<{
   "open-github": [];
   "open-settings": [initialTab?: string];
   "open-driver-store": [focus?: string];
+  "open-plugin-center": [];
   "check-updates": [];
   "open-transfer": [];
   "open-sql-file": [];
@@ -594,6 +596,7 @@ defineExpose({ closeOtherActiveTabs });
       :sql-library-save-feedback-id="sqlLibrarySaveFeedbackId"
       :show-sql-file-panel="showSqlFilePanel"
       :show-driver-store="showDriverStore"
+      :show-plugin-center="showPluginCenter"
       :show-settings-page="showSettingsPage"
       :checking-updates="checkingUpdates"
       :has-update-available="hasUpdateAvailable"
@@ -615,6 +618,7 @@ defineExpose({ closeOtherActiveTabs });
       @open-github="emit('open-github')"
       @open-settings="emit('open-settings', $event)"
       @open-driver-store="emit('open-driver-store', $event)"
+      @open-plugin-center="emit('open-plugin-center')"
       @check-updates="emit('check-updates')"
       @open-transfer="emit('open-transfer')"
       @open-sql-file="emit('open-sql-file')"
