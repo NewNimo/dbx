@@ -2,6 +2,7 @@
 import { blockingDesktopAiRunsForUpdate } from "@/lib/ai/desktopAiRunRegistry";
 import { setupUpdatePreparation, prepareUpdateWithDraftRecovery, isUpdatePreparationActive } from "@/lib/app/updatePreparation";
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, defineAsyncComponent, provide } from "vue";
+import { FileText, Package, PlugZap } from "@lucide/vue";
 import { useI18n } from "vue-i18n";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AppToolbar from "@/components/layout/AppToolbar.vue";
@@ -315,6 +316,7 @@ const connectionDialogPrefill = ref<ConnectionDeepLinkDraft | null>(null);
 const connectionDialogInitialTab = ref<ConfigTab | undefined>(undefined);
 const showSettingsDialog = ref(false);
 const showDriverStoreDialog = ref(false);
+const showPluginCenterDialog = ref(false);
 const settingsPageTabOpen = ref(false);
 const settingsInitialTab = ref("appearance");
 const settingsInitialSection = ref<string | undefined>(undefined);
@@ -332,7 +334,7 @@ const pluginCenterFocus = ref<PluginCenterFocus | null>(null);
 const connectionPluginProvider = ref<PluginCenterFocus | null>(null);
 const settingsReturnSurface = ref<"query" | "driverStore" | "pluginCenter" | "welcome">("welcome");
 const showDriverStore = computed(() => (isSqlyogLayout.value ? showDriverStoreDialog.value : driverStoreTabOpen.value && driverStoreActive.value));
-const showPluginCenter = computed(() => pluginCenterTabOpen.value && pluginCenterActive.value);
+const showPluginCenter = computed(() => (isSqlyogLayout.value ? showPluginCenterDialog.value : pluginCenterTabOpen.value && pluginCenterActive.value));
 const showSettingsPage = computed(() => (isSqlyogLayout.value ? showSettingsDialog.value : Boolean(settingsPageTabOpen.value && settingsStore.settingsPageActive)));
 const driverStoreDialogStyle = {
   width: "min(1120px, calc(100vw - 2rem))",
@@ -1119,12 +1121,17 @@ function closeDriverStorePage() {
 
 function openPluginCenterPage(focus?: PluginCenterFocus | null) {
   pluginCenterFocus.value = focus ?? null;
+  if (isSqlyogLayout.value) {
+    showPluginCenterDialog.value = true;
+    return;
+  }
   pluginCenterTabOpen.value = true;
   activateMainContentSurface("pluginCenter");
 }
 
 function closePluginCenterPage() {
   pluginCenterTabOpen.value = false;
+  showPluginCenterDialog.value = false;
   pluginCenterFocus.value = null;
   activateMainContentSurface("query");
 }
@@ -4266,6 +4273,29 @@ onUnmounted(() => {
           </DialogHeader>
           <div class="flex-1 min-h-0 overflow-hidden">
             <DriverStorePage v-if="showDriverStoreDialog" v-model:active-tab="driverStoreActiveTab" :update-notifications-enabled="updateNotificationsEnabled" :focus-target="driverStoreFocus" @update-count-change="updateAgentDriverUpdateCount" />
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog :open="showPluginCenterDialog" @update:open="showPluginCenterDialog = $event">
+        <DialogContent class="max-w-none p-0 overflow-hidden flex flex-col" :style="driverStoreDialogStyle">
+          <DialogHeader class="px-6 pt-5 pb-3 border-b shrink-0">
+            <DialogTitle class="text-base font-medium flex items-center gap-2">
+              <PlugZap class="h-4 w-4 text-primary" />
+              {{ t("toolbar.pluginCenter") }}
+            </DialogTitle>
+          </DialogHeader>
+          <div class="flex-1 min-h-0 overflow-hidden">
+            <PluginCenterPage
+              v-if="showPluginCenterDialog"
+              class="flex-1 min-h-0 h-full"
+              :focus-target="pluginCenterFocus"
+              @new-connection="
+                (pluginId, providerId) => {
+                  showPluginCenterDialog = false;
+                  openPluginConnectionDialog(pluginId, providerId);
+                }
+              "
+            />
           </div>
         </DialogContent>
       </Dialog>
