@@ -73,21 +73,27 @@ function handleMenuSelect(val: string) {
 </script>
 
 <template>
-  <div class="custom-connection-tab-bar h-9 flex items-stretch border-b border-border/80 bg-muted/30 select-none overflow-x-auto overflow-y-hidden" data-tauri-drag-region>
+  <div class="custom-connection-tab-bar h-9 flex items-stretch border-b border-border/80 bg-muted/30 select-none overflow-x-auto overflow-y-hidden">
     <!-- Left App Badge -->
-    <div class="flex items-center px-3 gap-1.5 border-r border-border/60 shrink-0 font-semibold text-xs text-foreground/90" data-tauri-drag-region>
+    <div class="flex items-center px-3 gap-1.5 border-r border-border/60 shrink-0 font-semibold text-xs text-foreground/90">
       <Server class="h-3.5 w-3.5 text-primary" />
       <span>{{ t("sidebar.connections") || "连接" }}</span>
     </div>
 
     <!-- Connection Tabs List -->
-    <div class="flex items-stretch flex-1 min-w-0 overflow-x-auto gap-0.5 px-1 py-0.5" data-tauri-drag-region>
+    <div class="flex items-stretch flex-1 min-w-0 overflow-x-auto gap-0.5 px-1 py-0.5" role="tablist">
       <div
         v-for="conn in openedConnections"
         :key="conn.id"
-        class="custom-conn-tab group relative flex items-center gap-1.5 px-3 py-1 text-xs rounded-t-sm border border-b-0 cursor-pointer transition-colors max-w-[200px]"
+        role="tab"
+        :aria-selected="activeConnectionId === conn.id"
+        tabindex="0"
+        class="custom-conn-tab group relative flex items-center gap-1.5 px-3 py-1 text-xs rounded-t-sm border border-b-0 cursor-pointer transition-colors max-w-[200px] outline-none"
         :class="[activeConnectionId === conn.id ? 'active bg-background border-border/90 text-foreground font-medium shadow-xs shadow-black/5' : 'bg-muted/40 hover:bg-muted/80 border-transparent text-muted-foreground hover:text-foreground']"
         @click="emit('activate-connection', conn.id)"
+        @keydown.enter.prevent="emit('activate-connection', conn.id)"
+        @keydown.space.prevent="emit('activate-connection', conn.id)"
+        @mousedown.middle.prevent="emit('close-connection', conn.id)"
       >
         <!-- Connected Status Indicator -->
         <span class="h-1.5 w-1.5 rounded-full shrink-0" :class="connectionStore.connectedIds.has(conn.id) ? 'bg-emerald-500' : 'bg-muted-foreground/30'" />
