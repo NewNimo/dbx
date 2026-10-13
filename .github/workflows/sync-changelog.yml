@@ -1,9 +1,6 @@
 name: Sync Changelog to R2
 
 on:
-  workflow_run:
-    workflows: ["Publish Packages"]
-    types: [completed]
   workflow_dispatch:
 
 jobs:
