@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
 import { ChevronsRight, AlertTriangle, Table2, FileCode, Plus } from "@lucide/vue";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -273,12 +273,16 @@ watch(
   { immediate: true },
 );
 
+let isSwitchingConnection = false;
 let previousTabsCount = queryStore.tabs.length;
 
 // Sync active tab connection to connection tabs and remember last active tab
 watch(
   () => [queryStore.activeTabId, props.activeTab?.connectionId, queryStore.tabs.length] as const,
   ([tabId, connId, currentTabsCount]) => {
+    if (isSwitchingConnection) {
+      return;
+    }
     const wasTabClosed = currentTabsCount < previousTabsCount;
     previousTabsCount = currentTabsCount;
 
@@ -296,7 +300,9 @@ watch(
           const remainingInCurrent = queryStore.tabs.filter((t) => t.connectionId === currentConnId);
           if (remainingInCurrent.length > 0) {
             const nextTab = remainingInCurrent[remainingInCurrent.length - 1]!;
-            queryStore.activeTabId = nextTab.id;
+            if (!queryStore.activateTab(nextTab.id)) {
+              queryStore.activeTabId = nextTab.id;
+            }
             customConnectionTabs.setLastActiveTab(currentConnId, nextTab.id);
           } else {
             queryStore.activeTabId = null;
@@ -327,7 +333,9 @@ onMounted(() => {
     const matchingTab = (lastTabId ? queryStore.tabs.find((t) => t.id === lastTabId && t.connectionId === activeConnId) : null) || queryStore.tabs.find((t) => t.connectionId === activeConnId);
 
     if (matchingTab) {
-      queryStore.activeTabId = matchingTab.id;
+      if (!queryStore.activateTab(matchingTab.id)) {
+        queryStore.activeTabId = matchingTab.id;
+      }
     } else if (props.activeTab && props.activeTab.connectionId !== activeConnId) {
       queryStore.activeTabId = null;
     }
@@ -336,18 +344,27 @@ onMounted(() => {
 
 // When active connection changes, set active connection in store and pick last active or first matching tab
 function handleActivateConnection(connId: string) {
-  customConnectionTabs.activateConnectionTab(connId);
-  connectionStore.activeConnectionId = connId;
+  isSwitchingConnection = true;
+  try {
+    customConnectionTabs.activateConnectionTab(connId);
+    connectionStore.activeConnectionId = connId;
 
-  // Look for last active tab for this connection or first tab
-  const lastTabId = customConnectionTabs.getLastActiveTab(connId);
-  const matchingTab = (lastTabId ? queryStore.tabs.find((t) => t.id === lastTabId && t.connectionId === connId) : null) || queryStore.tabs.find((t) => t.connectionId === connId);
+    // Look for last active tab for this connection or first tab
+    const lastTabId = customConnectionTabs.getLastActiveTab(connId);
+    const matchingTab = (lastTabId ? queryStore.tabs.find((t) => t.id === lastTabId && t.connectionId === connId) : null) || queryStore.tabs.find((t) => t.connectionId === connId);
 
-  if (matchingTab) {
-    queryStore.activeTabId = matchingTab.id;
-    customConnectionTabs.setLastActiveTab(connId, matchingTab.id);
-  } else {
-    queryStore.activeTabId = null;
+    if (matchingTab) {
+      if (!queryStore.activateTab(matchingTab.id)) {
+        queryStore.activeTabId = matchingTab.id;
+      }
+      customConnectionTabs.setLastActiveTab(connId, matchingTab.id);
+    } else {
+      queryStore.activeTabId = null;
+    }
+  } finally {
+    void nextTick(() => {
+      isSwitchingConnection = false;
+    });
   }
 }
 

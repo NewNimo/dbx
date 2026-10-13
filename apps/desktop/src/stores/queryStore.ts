@@ -7580,6 +7580,11 @@ export const useQueryStore = defineStore("query", () => {
   watch(
     activeTabId,
     (id) => {
+      // [CUSTOM_SQLYOG_LAYOUT] In SQLyog multi-connection layout, each connection tab has its own scoped tabs.
+      // A connection workspace without any open query tabs must be allowed to have activeTabId as null.
+      if (useSettingsStore().editorSettings.appLayout === "sqlyog") {
+        return;
+      }
       if (tabs.value.length > 0 && (!id || !tabs.value.some((tab) => tab.id === id))) {
         activeTabId.value = tabs.value[0].id;
       }
