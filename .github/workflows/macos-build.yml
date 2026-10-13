@@ -2,10 +2,6 @@ name: macOS Build
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "macos-*"
-      - "v*"
 
 permissions:
   contents: read

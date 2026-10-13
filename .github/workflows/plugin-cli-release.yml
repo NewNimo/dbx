@@ -1,9 +1,6 @@
 name: Plugin CLI Release
 
 on:
-  push:
-    tags:
-      - "plugin-cli-v*"
   workflow_dispatch:
     inputs:
       version:

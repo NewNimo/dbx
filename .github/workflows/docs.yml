@@ -1,13 +1,6 @@
 name: Deploy Docs
 
 on:
-  push:
-    branches: [main]
-    paths: ["docs/**"]
-  workflow_run:
-    # Release and agent metadata are embedded during the static build, so wait for their R2 producers.
-    workflows: ["Sync Changelog to R2", "Agents Release"]
-    types: [completed]
   workflow_dispatch:
 
 permissions:

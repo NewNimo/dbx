@@ -1,9 +1,7 @@
 name: VSign Operator Bootstrap
 
 on:
-  push:
-    tags:
-      - "trustasia-vsign-init-*"
+  workflow_dispatch:
 
 permissions:
   contents: read
